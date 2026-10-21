@@ -21,8 +21,10 @@ type Toggle = { update: { visible_to_terral: boolean }; match: { id: string } }
  * (on by default; sent explicitly, the column defaults to false) and visible text passes the Terral guard.
  * Terral comments are always visible and not guarded. `canHide` (Don only) adds a hide/show toggle per comment.
  */
-export function Comments({ entity_kind, entity_ref, canHide }: { entity_kind: string; entity_ref: string; canHide: boolean }) {
-  const { role, rows } = useEntityRows('comments', entity_kind, entity_ref)
+export function Comments({ entity_kind, entity_ref, canHide, preview = false }: { entity_kind: string; entity_ref: string; canHide: boolean; preview?: boolean }) {
+  // preview: Don looks at Terral's view. Terral's rows, read-only (Don must not write as Terral).
+  const { role: who, rows } = useEntityRows('comments', entity_kind, entity_ref, preview)
+  const role = preview ? null : who
   const isDon = role === 'don'
   const share = shareable(entity_kind)
   const qc = useQueryClient()
@@ -103,6 +105,7 @@ export function Comments({ entity_kind, entity_ref, canHide }: { entity_kind: st
       ) : (
         <p className="don-quiet">Nenhum comentário ainda.</p>
       )}
+      {preview && <p className="dfield-hint">Na prévia não dá para comentar: só a Terral comenta aqui.</p>}
 
       {role && (
         <form className="cm-form" onSubmit={submit}>

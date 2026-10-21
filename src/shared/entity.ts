@@ -14,13 +14,14 @@ type Rows = { comments: Comment; evidence: Evidence }
 /**
  * Comments or evidence of one entity, oldest first, from the caller's own data: the plan for Don,
  * Terral's reads (already RLS-filtered: visible rows on visible entities) for Terral.
+ * `asTerral` (Don's "Visão da Terral" preview): Terral's projection of the plan, whatever the role.
  */
-export function useEntityRows<K extends keyof Rows>(key: K, kind: string, ref: string) {
+export function useEntityRows<K extends keyof Rows>(key: K, kind: string, ref: string, asTerral = false) {
   const { profile } = useSession()
   const don = usePlanData()
   const terral = useTerralData()
   const role = profile?.role ?? null
-  const q = role === 'don' ? don : terral
+  const q = role === 'don' && !asTerral ? don : terral
   const all = (q.data?.[key] ?? []) as Rows[K][]
   const rows = all
     .filter((r) => r.entity_kind === kind && r.entity_ref === ref)

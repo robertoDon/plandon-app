@@ -38,6 +38,7 @@ export function Shell({ sections, children }: { sections: Section[]; children: R
   // the dialog has closed, since closing returns focus to "Mais".
   useEffect(() => {
     if (first.current) return void (first.current = false)
+    window.scrollTo(0, 0) // a new page starts at its top, not where the last one was scrolled
     if (moreOpen) {
       focusAfterSheet.current = true
       setMoreOpen(false)

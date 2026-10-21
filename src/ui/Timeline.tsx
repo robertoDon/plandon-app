@@ -34,8 +34,9 @@ export function Timeline({ from, to, today, items }: { from: ISODate; to: ISODat
       setPlace([...el.children].map((li, i) => {
         const x = (pos(inside[i].date) / 100) * w
         const text = li.querySelector('.ui-tl-text') as HTMLElement
-        // natural width, even when an earlier pass truncated the text
-        const natural = (li as HTMLElement).offsetWidth - text.clientWidth + text.scrollWidth
+        // natural width, even when an earlier pass truncated the text, but never past the CSS max-width of the text
+        const cap = parseFloat(getComputedStyle(text).maxWidth) || Infinity
+        const natural = (li as HTMLElement).offsetWidth - text.clientWidth + Math.min(text.scrollWidth, cap)
         const right = w - x + 7 // room when the label runs right of its dot
         const left = x + 7
         const flip = natural > right && left > right
@@ -65,8 +66,8 @@ export function Timeline({ from, to, today, items }: { from: ISODate; to: ISODat
   return (
     <div className="ui-tl">
       <div className="ui-tl-months" aria-hidden="true">
-        {/* a month that starts just before `to` has no room for its label: skip the label */}
-        {months.filter((m, i) => i === 0 || !width || ((100 - m.at) / 100) * width >= MONTH_W)
+        {/* a month with no room for its label (just before `to`, or a first partial month right before the next): skip it */}
+        {months.filter((m, i) => !width || (i === 0 ? i + 1 >= months.length || ((months[i + 1].at - m.at) / 100) * width >= MONTH_W : ((100 - m.at) / 100) * width >= MONTH_W))
           .map((m) => <span key={m.key} style={{ left: `${m.at}%` }}>{m.label}</span>)}
       </div>
       <div style={{ position: 'relative' }}>

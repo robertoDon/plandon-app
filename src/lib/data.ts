@@ -141,11 +141,12 @@ const replay = (p: { base: DonData; changes: Map<number, Change> }) => [...p.cha
 
 /**
  * Writes one table (or calls one RPC). Records nothing itself: a database trigger writes the history.
- * `optimistic` updates the plan cache at once; an error rolls back that write's change only and shows a toast.
+ * `optimistic` updates the plan cache at once; an error rolls back that write's change only and shows a toast
+ * (unless `silent`: the caller then shows the error, for example inline in a form).
  * The plan is refetched (fire-and-forget) once the last write in flight settles, so the promise of
  * `mutateAsync` resolves as soon as the server answers.
  */
-export function useMutate<T extends Write>(table: string, opts: { optimistic?: (old: DonData, vars: T) => DonData } = {}) {
+export function useMutate<T extends Write>(table: string, opts: { optimistic?: (old: DonData, vars: T) => DonData; silent?: boolean } = {}) {
   const qc = useQueryClient()
   const toast = useToast()
   return useMutation({
@@ -178,7 +179,7 @@ export function useMutate<T extends Write>(table: string, opts: { optimistic?: (
     onError: (e, _vars, ctx) => {
       const p = inflight.get(qc)
       if (p && ctx?.id && p.changes.delete(ctx.id)) qc.setQueryData(PLAN, replay(p))
-      toast.show(errorText(e), { tone: 'error' })
+      if (!opts.silent) toast.show(errorText(e), { tone: 'error' }) // silent: the caller shows the error itself
     },
     onSettled: () => {
       const p = inflight.get(qc)

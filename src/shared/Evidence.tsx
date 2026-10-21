@@ -77,8 +77,10 @@ type Toggle = { update: { visible_to_terral: boolean }; match: { id: string } }
  * fails no row is written. Don's files are visible to Terral on Terral-visible entities unless the file name names
  * a Don person (then Don-only, with a notice); Don can hide and show each file.
  */
-export function Evidence({ entity_kind, entity_ref }: { entity_kind: string; entity_ref: string }) {
-  const { role, uid, rows } = useEntityRows('evidence', entity_kind, entity_ref)
+export function Evidence({ entity_kind, entity_ref, preview = false }: { entity_kind: string; entity_ref: string; preview?: boolean }) {
+  // preview: Don looks at Terral's view. Terral's rows, open only, no upload (Don must not attach as Terral).
+  const { role: who, uid, rows } = useEntityRows('evidence', entity_kind, entity_ref, preview)
+  const role = preview ? null : who
   const isDon = role === 'don'
   const share = shareable(entity_kind)
   const qc = useQueryClient()
@@ -203,6 +205,7 @@ export function Evidence({ entity_kind, entity_ref }: { entity_kind: string; ent
       ) : (
         <p className="don-quiet">Nenhum arquivo ainda.</p>
       )}
+      {preview && <p className="dfield-hint">Na prévia não dá para anexar: só a Terral anexa aqui.</p>}
 
       {role && (
         <div className="ev-up">
