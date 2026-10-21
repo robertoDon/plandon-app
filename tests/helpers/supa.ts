@@ -74,7 +74,7 @@ export async function cleanup() {
   const a = admin()
   const del = async (table: string, col: string, values: string[]) => ok(await a.from(table).delete().in(col, values), `cleanup ${table}`)
   const { data } = ok(await a.auth.admin.listUsers({ perPage: 1000 }), 'listUsers')
-  const users = data.users.filter((u) => u.email && [...Object.values(EMAILS), SIGNUP_EMAIL].includes(u.email))
+  const users = data.users.filter((u) => u.email?.endsWith('@x.test')) // every fixture and test signup uses @x.test
   await a.storage.from('evidence').remove([...Object.values(PATH), ...users.map((u) => `${u.id}/${TERRAL_FILE}`)])
   await del('evidence', 'entity_ref', [K.deliverable, K.openHidden, ID.task])
   await del('comment', 'entity_ref', [K.deliverable, K.openHidden, ID.task, K.decision])

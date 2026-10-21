@@ -284,6 +284,35 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     await admin().from('profiles').update({ status: 'pending', role: null }).eq('id', f.ids.pending)
   })
 
+  it('nobody can take the name "Equipe Don" (Don authors appear to Terral under it)', async () => {
+    const reserved = ['Equipe Don', 'equipe  don', ' EQUIPE DON ', 'Equipe Dôn', 'Équipe-Don', 'EquipeDon', 'equipe don', 'equipe​don', 'Minha Equipe Don oficial']
+    for (const [i, display_name] of reserved.entries()) {
+      const s = await anon().auth.signUp({ email: `reserved-${i}@x.test`, password: 'rls-test-password-1', options: { data: { display_name } } })
+      expect(s.error, JSON.stringify(display_name)).not.toBeNull()
+    }
+    // the e-mail fallback is checked too
+    expect((await anon().auth.signUp({ email: 'equipe.don@x.test', password: 'rls-test-password-1' })).error).not.toBeNull()
+    const { data } = await admin().auth.admin.listUsers({ perPage: 1000 })
+    expect(data.users.filter((u) => /^(reserved-\d+|equipe\.don)@x\.test$/.test(u.email ?? ''))).toEqual([])
+
+    // a rename is refused as well, even by Don
+    expect((await don.from('profiles').update({ display_name: 'equipe don' }).eq('id', f.ids.terral)).error?.code).toBe('23514')
+    expect((await admin().from('profiles').select('display_name').eq('id', f.ids.terral).single()).data).toEqual({ display_name: 'terral' })
+
+    // names that only look alike stay allowed
+    const ok = await anon().auth.signUp({ email: 'donizete@x.test', password: 'rls-test-password-1', options: { data: { display_name: 'Equipe Donizete' } } })
+    expect(ok.error).toBeNull()
+    extraRefs.push(ok.data.user!.id)
+  })
+
+  it('a divergência (X-item) can never be made visible to Terral', async () => {
+    expect((await don.from('open_item').update({ visible_to_terral: true }).eq('code', K.openHidden)).error?.code).toBe('23514')
+    const x = { code: 'rls-X-99', kind: 'divergencia', text: 'x', owner_public: 'Equipe Don', status: 'open', visible_to_terral: true }
+    expect((await don.from('open_item').insert(x)).error?.code).toBe('23514')
+    expect((await admin().from('open_item').insert(x)).error?.code).toBe('23514') // not even the loader
+    expect((await don.from('open_item').select('visible_to_terral').eq('code', K.openHidden).single()).data).toEqual({ visible_to_terral: false })
+  })
+
   it('history logs Don edits and nobody can read or rewrite it except Don reading', async () => {
     expect((await don.from('deliverable').update({ name: 'Novo' }).eq('code', K.deliverable).select()).data).toHaveLength(1)
     const h = (await don.from('history').select('*').eq('row_ref', K.deliverable).eq('action', 'UPDATE').eq('user_id', f.ids.don)).data!
