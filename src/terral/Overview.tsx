@@ -130,7 +130,7 @@ function Body({ d, today }: { d: TerralData; today: string }) {
   )
 }
 
-export function TodoRow({ x, today, urgent, preview, hint = PREVIEW_HINT, onConfirm }: { x: TerralTodo; today: string; urgent: Set<string | undefined>; preview: boolean; hint?: string; onConfirm: ReturnType<typeof useConfirmDate>['ask'] }) {
+export function TodoRow({ x, today, urgent, preview, onConfirm }: { x: TerralTodo; today: string; urgent: Set<string | undefined>; preview: boolean; onConfirm: ReturnType<typeof useConfirmDate>['ask'] }) {
   if (x.kind === 'open_item') {
     const o = x.item
     const due = dueTone(o.due, today, urgent.has(o.code))
@@ -146,7 +146,7 @@ export function TodoRow({ x, today, urgent, preview, hint = PREVIEW_HINT, onConf
     <Row date={x.date} clamp title={s.what}
       detail={s.confirmed_date ? `Entrega ${name}` : `Entrega ${name} · ${s.window_text ?? 'janela a definir'}`}
       side={s.confirmed_date ? <Pill tone="ok">data confirmada</Pill> : (
-        <button type="button" className="dbtn small" disabled={preview} title={preview ? hint : undefined}
+        <button type="button" className="dbtn small" disabled={preview} title={preview ? PREVIEW_HINT : undefined}
           aria-label={`Confirmar data: ${s.what}`}
           onClick={() => onConfirm({
             kind: 'to_schedule', ref: s.id, title: s.what, initial: s.window_start && s.window_start >= today ? s.window_start : null,

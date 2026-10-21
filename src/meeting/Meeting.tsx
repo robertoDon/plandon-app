@@ -22,15 +22,14 @@ import '../terral/terral.css'
 import './meeting.css'
 
 // Meeting mode: the checkpoint agenda on the big screen. It reads useTerralData only, so a Don user running the
-// meeting shows exactly what Terral sees. Writes stay Terral's: in a Don session they are off, as in the preview.
+// meeting shows exactly what Terral sees. Both roles record decisions and confirm dates here (Don runs the War Room;
+// the RPCs allow both); only the /don/terral preview is read-only.
 
 export const STEPS = ['Saúde', 'Marcos', 'Decisões da semana', 'Pendências'] as const
 const LAST = STEPS.length - 1
 // What fits at 1920×1080 (and any 16:9, the type scales with the viewport); the rest becomes "+N".
 const CAP = { milestones: 6, decisions: 6, todos: 5 }
 const IDLE_MS = 2500
-/** Disabled writes in a Don session: plain, no "prévia" (this is the meeting, not the preview). */
-const DON_HINT = 'Só a Terral faz isso.'
 
 /** ?passo=1..4 → step index; anything else is step 1. */
 export const stepOf = (v: string | null) => {
@@ -70,7 +69,6 @@ export function Meeting() {
   const drag = useDragControls()
   const editor = useEditor<Decision>()
   const confirm = useConfirmDate()
-  const preview = profile?.role !== 'terral'
   const [fs, setFs] = useState(() => !!document.fullscreenElement)
   const [idle, setIdle] = useState(false)
   const asked = useRef(false)
@@ -198,7 +196,7 @@ export function Meeting() {
               // swipe is for touch and pen only: a mouse selects text and clicks, it never changes the step
               drag="x" dragListener={false} dragControls={drag} onPointerDown={(e) => { if (e.pointerType !== 'mouse') drag.start(e) }}
               dragConstraints={{ left: 0, right: 0 }} dragElastic={0.2} onDragEnd={onDragEnd}>
-              <Step i={step} d={q.data} today={today} hid={`${uid}-h${step}`} preview={preview} onRegister={editor.show} onConfirm={confirm.ask} />
+              <Step i={step} d={q.data} today={today} hid={`${uid}-h${step}`} onRegister={editor.show} onConfirm={confirm.ask} />
             </motion.section>
           </AnimatePresence>
         ) : (
@@ -239,7 +237,7 @@ function useCap<T>(xs: T[], cap: number) {
   return { total: xs.length, shown: open ? xs : xs.slice(0, cap), more: { n: xs.length - cap, open, onToggle: () => setOpen(!open) } }
 }
 
-type Writes = { preview: boolean; onRegister: (x: Decision) => void; onConfirm: ReturnType<typeof useConfirmDate>['ask'] }
+type Writes = { onRegister: (x: Decision) => void; onConfirm: ReturnType<typeof useConfirmDate>['ask'] }
 
 function Step({ i, d, today, hid, ...w }: { i: number; d: TerralData; today: ISODate; hid: string } & Writes) {
   const { start, weeks } = projectSpan(d)
@@ -308,17 +306,17 @@ export function weekDecisions(d: TerralData, today: ISODate) {
   return { late, week }
 }
 
-function Decisoes({ d, today, head, preview, onRegister }: StepProps & Writes) {
+function Decisoes({ d, today, head, onRegister }: StepProps & Writes) {
   const { late, week } = useMemo(() => weekDecisions(d, today), [d, today])
   const all = [...late, ...week]
   const { shown, more } = useCap(all, CAP.decisions)
   const lateShown = shown.slice(0, late.length)
   const weekShown = shown.slice(late.length)
   const open = week.filter((x) => x.status !== 'decided').length
-  const row = (x: Decision) => <DecisionRow key={x.code} x={x} today={today} preview={preview} hint={DON_HINT} onRegister={onRegister} />
+  const row = (x: Decision) => <DecisionRow key={x.code} x={x} today={today} preview={false} onRegister={onRegister} />
   return (
     <>
-      {head(`De ${fmtDate(addDays(today, -7))} a ${fmtDate(addDays(today, 7))}: ${open === 0 ? 'nenhuma em aberto' : open === 1 ? '1 em aberto' : `${open} em aberto`}${late.length ? `, e ${late.length} em atraso` : ''}.${preview ? ' Registrar fica com a Terral.' : ''}`)}
+      {head(`De ${fmtDate(addDays(today, -7))} a ${fmtDate(addDays(today, 7))}: ${open === 0 ? 'nenhuma em aberto' : open === 1 ? '1 em aberto' : `${open} em aberto`}${late.length ? `, e ${late.length} em atraso` : ''}.`)}
       <div className="m-body">
         <Card>
           {all.length ? (
@@ -344,19 +342,19 @@ function Decisoes({ d, today, head, preview, onRegister }: StepProps & Writes) {
   )
 }
 
-function Pendencias({ d, today, head, preview, onConfirm }: StepProps & Writes) {
+function Pendencias({ d, today, head, onConfirm }: StepProps & Writes) {
   const { urgent } = useMemo(() => healthOf(d, today), [d, today])
   const todos = useMemo(() => terralTodos(d), [d])
   const items = useCap(todos.filter((x) => x.kind === 'open_item'), CAP.todos)
   const dates = useCap(todos.filter((x) => x.kind === 'to_schedule' && !x.item.confirmed_date), CAP.todos)
   const list = (xs: TerralTodo[], name: string) => (
     <ul className="t-list" aria-label={name}>
-      {xs.map((x) => <TodoRow key={x.key} x={x} today={today} urgent={urgent} preview={preview} hint={DON_HINT} onConfirm={onConfirm} />)}
+      {xs.map((x) => <TodoRow key={x.key} x={x} today={today} urgent={urgent} preview={false} onConfirm={onConfirm} />)}
     </ul>
   )
   return (
     <>
-      {head(`O que depende da Terral.${preview ? ' Confirmar data fica com a Terral.' : ''}`)}
+      {head('O que depende da Terral.')}
       <div className="m-body m-cols">
         <Card title={`Pendências em aberto (${items.total})`}>
           {items.total ? list(items.shown, 'Pendências em aberto') : <Empty title="Nenhuma pendência aberta." />}

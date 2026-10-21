@@ -236,9 +236,9 @@ describe('Decisões', () => {
   it('"Quem decidiu" refuses a Don name or hours, a future date, and empty fields, without calling the RPC', async () => {
     await open('D02')
     fill('Dez contas', 'David')
-    expect(await screen.findByText(/sem nomes de pessoas nem horas/)).toBeInTheDocument()
+    expect(await screen.findByText(/sem nomes da equipe Don nem horas/)).toBeInTheDocument()
     fill('Dez contas', 'Diretoria, 2 h')
-    expect(await screen.findByText(/sem nomes de pessoas nem horas/)).toBeInTheDocument()
+    expect(await screen.findByText(/sem nomes da equipe Don nem horas/)).toBeInTheDocument()
     fill('Dez contas', 'Diretoria executiva', '2026-12-01')
     expect(await screen.findByText('A data não pode ser depois de hoje.')).toBeInTheDocument()
     fill('', 'Diretoria executiva', TODAY)

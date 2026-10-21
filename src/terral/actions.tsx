@@ -5,6 +5,9 @@ import type { TerralData } from '../domain/terralView'
 import { findForbidden } from '../domain/textGuard'
 import type { Decision } from '../domain/types'
 import { useMutate } from '../lib/data'
+import { useSession } from '../auth/useSession'
+import { confirmOnPlan, decideOnPlan, type ConfirmRpc, type DecisionRpc } from '../don/mutations'
+import { terralTextError } from '../don/forms'
 import { TERRAL_QUERY } from '../shared/entity'
 import { Sheet, useToast } from '../ui'
 import { Field } from '../don/fields'
@@ -12,7 +15,8 @@ import { useToday } from '../shared/useToday'
 import { isIsoDate } from './model'
 
 // Terral's two writes, both RPCs (0002/0004): confirm_date(p_kind, p_ref, p_date) and
-// record_decision(p_code, p_outcome, p_decided_by, p_decided_at).
+// record_decision(p_code, p_outcome, p_decided_by, p_decided_at). Don calls them too, in meeting mode: Don reads the
+// plan cache, so `optimistic` patches that one (useMutate rolls it back on error); Terral's cache is patched here.
 
 /** pt-BR text for an RPC error, by Postgres code. */
 export function rpcError(e: unknown): string {
@@ -47,7 +51,7 @@ function patch(old: Cache, t: DateTarget, date: ISODate, prev?: unknown): Cache 
 export function useConfirmDate() {
   const qc = useQueryClient()
   const toast = useToast()
-  const write = useMutate<{ rpc: { p_kind: string; p_ref: string; p_date: string } }>('confirm_date', { silent: true })
+  const write = useMutate<ConfirmRpc>('confirm_date', { silent: true, optimistic: confirmOnPlan })
   const [target, setTarget] = useState<DateTarget | null>(null)
   const [open, setOpen] = useState(false)
 
@@ -121,12 +125,14 @@ function DateField({ label, value, onChange, error, warn, hint, max = '9999-12-3
 
 /**
  * "Registrar decisão": what was decided, who decided (a position) and when. Calls record_decision with the values
- * as typed (trimmed). "Quem decidiu" is shown to everyone, so it may not name a Don person or carry hours.
+ * as typed (trimmed). "Quem decidiu" is shown to everyone, so it may not name a Don person or carry hours. When a Don
+ * user types (meeting mode), "O que foi decidido" passes the Terral text guard too; Terral's own words do not.
  */
 export function DecisionForm({ decision, today, onDone }: { decision: Decision; today: ISODate; onDone: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
-  const write = useMutate<{ rpc: { p_code: string; p_outcome: string; p_decided_by: string; p_decided_at: string } }>('record_decision', { silent: true })
+  const don = useSession().profile?.role === 'don'
+  const write = useMutate<DecisionRpc>('record_decision', { silent: true, optimistic: decideOnPlan })
   const [outcome, setOutcome] = useState('')
   const [by, setBy] = useState('')
   const [at, setAt] = useState(today)
@@ -137,8 +143,9 @@ export function DecisionForm({ decision, today, onDone }: { decision: Decision; 
     e.preventDefault()
     const err: Record<string, string> = {}
     if (!outcome.trim()) err.outcome = 'Escreva o que foi decidido.'
+    else if (don) { const e = terralTextError(outcome); if (e) err.outcome = e }
     if (!by.trim()) err.by = 'Diga quem decidiu, por posição. Exemplo: Diretoria executiva.'
-    else if (findForbidden(by).length) err.by = 'Use a posição de quem decidiu, como Diretoria executiva, sem nomes de pessoas nem horas.'
+    else if (findForbidden(by).length) err.by = 'Use a posição de quem decidiu, como Diretoria executiva, sem nomes da equipe Don nem horas.'
     if (!at) err.at = 'Informe a data da decisão.'
     else if (!isIsoDate(at)) err.at = 'Essa data não existe. Confira o dia, o mês e o ano.'
     else if (at > today) err.at = 'A data não pode ser depois de hoje.'

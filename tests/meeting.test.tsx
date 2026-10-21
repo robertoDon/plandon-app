@@ -2,7 +2,7 @@
 // Meeting mode (/reuniao): four steps driven by keys, dots and swipe; Esc goes home; only Terral-safe data, even in a
 // Don session; keys are left alone while a form field or the record sheet has focus.
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +14,7 @@ import { realPlan } from './helpers/realPlan'
 type Row = Record<string, unknown>
 
 const mock = vi.hoisted(() => {
-  const m = { db: {} as Record<string, Row[]>, profile: null as unknown, rpcs: [] as unknown[] }
+  const m = { db: {} as Record<string, Row[]>, profile: null as unknown, rpcs: [] as unknown[], delay: 20 }
   const read = (t: string) => {
     const p = Promise.resolve().then(() => ({ data: structuredClone(m.db[t] ?? []), error: null })) as Promise<unknown> & Record<string, unknown>
     p.order = () => p
@@ -23,7 +23,13 @@ const mock = vi.hoisted(() => {
   }
   const supabase = {
     from: (t: string) => ({ select: () => read(t) }),
-    rpc: async (fn: string, args: unknown) => { m.rpcs.push({ fn, args }); return { data: null, error: null } },
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      m.rpcs.push({ fn, args })
+      await new Promise((r) => setTimeout(r, m.delay))
+      if (fn === 'record_decision') Object.assign(m.db.decision?.find((x) => x.code === args.p_code) ?? {}, { status: 'decided', outcome: args.p_outcome, decided_by: args.p_decided_by, decided_at: args.p_decided_at })
+      if (fn === 'confirm_date' && args.p_kind === 'to_schedule') Object.assign(m.db.to_schedule?.find((x) => x.id === args.p_ref) ?? {}, { confirmed_date: args.p_date })
+      return { data: null, error: null }
+    },
     storage: { from: () => ({}) },
   }
   return { m, supabase }
@@ -93,7 +99,7 @@ beforeAll(() => {
   p.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', '') }
   p.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open') }
 })
-beforeEach(() => { m.rpcs = []; seed('terral') })
+beforeEach(() => { m.rpcs = []; m.delay = 20; seed('terral') })
 afterEach(cleanup)
 
 describe('navigation', () => {
@@ -179,17 +185,44 @@ describe('data', () => {
     expect(findForbidden(text)).toEqual([])
   }, 30_000)
 
-  it('Don runs the meeting but cannot record as Terral', async () => {
+  /** Opens "Registrar decisão" for `code` on step 3 and submits the form. */
+  async function record(code: string, outcome: string, by = 'Diretoria executiva') {
+    fireEvent.click(await screen.findByRole('button', { name: `Registrar decisão ${code}` }))
+    fireEvent.change(await screen.findByLabelText(/O que foi decidido/), { target: { value: outcome } })
+    fireEvent.change(screen.getByLabelText(/Quem decidiu/), { target: { value: by } })
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
+  }
+
+  it('Don runs the War Room and records a decision; it shows at once', async () => {
     seed('don')
-    mount()
+    mount('/reuniao?passo=3')
     await ready()
-    key('ArrowRight')
-    key('ArrowRight')
     const b = await screen.findByRole('button', { name: 'Registrar decisão D02' })
-    expect(b).toBeDisabled()
-    expect(b).toHaveAttribute('title', expect.stringMatching(/Só a Terral/))
+    expect(b).toBeEnabled()
+    expect(b).not.toHaveAttribute('title')
+    expect(screen.queryByText(/fica com a Terral|Só a Terral/)).toBeNull()
+    await record('D02', 'Dez contas no piloto')
+    await waitFor(() => expect(m.rpcs).toEqual([{ fn: 'record_decision', args: { p_code: 'D02', p_outcome: 'Dez contas no piloto', p_decided_by: 'Diretoria executiva', p_decided_at: TODAY } }]))
+    expect(await screen.findByText(/Dez contas no piloto/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Registrar decisão D02' })).toBeNull()
   })
 
+  it('a Don user\'s outcome passes the Terral text guard; Terral\'s does not need to', async () => {
+    seed('don')
+    mount('/reuniao?passo=3')
+    await ready()
+    await record('D02', 'David leva 3 h nisso')
+    expect(await screen.findByText(/"David" é da equipe Don/)).toBeInTheDocument()
+    expect(m.rpcs).toEqual([])
+    cleanup()
+
+    seed('terral')
+    mount('/reuniao?passo=3')
+    await ready()
+    await record('D02', 'Falamos com o David')
+    await waitFor(() => expect(m.rpcs).toHaveLength(1))
+    expect(m.rpcs[0]).toMatchObject({ fn: 'record_decision', args: { p_outcome: 'Falamos com o David' } })
+  })
   it('Decisões da semana: dated within 7 days of today; Pendências: open items and dates to confirm', async () => {
     mount()
     await ready()
@@ -259,17 +292,24 @@ describe('fix round 1', () => {
     expect(screen.getByTestId('where')).toHaveTextContent('/reuniao?today=2026-11-10&passo=4')
   })
 
-  it('Don: "Confirmar data" off on step 4, with a visible line saying so', async () => {
+  it('Don confirms a date on step 4 in the meeting; it shows at once', async () => {
     seed('don')
     mount('/reuniao?passo=4')
     await ready()
-    expect(await screen.findByText(/Confirmar data fica com a Terral\./)).toBeInTheDocument()
-    const bs = screen.getAllByRole('button', { name: /^Confirmar data:/ })
-    expect(bs.length).toBeGreaterThan(0)
-    for (const b of bs) {
-      expect(b).toBeDisabled()
-      expect(b).toHaveAttribute('title', 'Só a Terral faz isso.')
-    }
+    expect(screen.queryByText(/fica com a Terral|Só a Terral/)).toBeNull()
+    const list = await screen.findByRole('list', { name: 'Datas a confirmar' })
+    const first = within(list).getAllByRole('button', { name: /^Confirmar data:/ })[0]
+    expect(first).toBeEnabled()
+    const count = () => Number(screen.getByText(/^Datas a confirmar \(\d+\)$/).textContent!.match(/\d+/)![0])
+    const before = count()
+    fireEvent.click(first)
+    fireEvent.change(await screen.findByLabelText(/Data combinada/), { target: { value: '2026-11-20' } })
+    m.delay = 400
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+    await waitFor(() => expect(count()).toBe(before - 1)) // optimistic: before the server answers
+    expect(screen.queryByText('Data confirmada: 20/11/2026.')).toBeNull()
+    expect(m.rpcs).toEqual([{ fn: 'confirm_date', args: expect.objectContaining({ p_kind: 'to_schedule', p_date: '2026-11-20' }) }])
+    expect(await screen.findByText('Data confirmada: 20/11/2026.')).toBeInTheDocument()
   })
 
   it('the record sheet is not inside the draggable step, so dragging in it cannot change the step', async () => {
