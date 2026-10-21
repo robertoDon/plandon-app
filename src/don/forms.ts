@@ -24,11 +24,6 @@ export function terralErrors(fields: Record<string, string>): Record<string, str
   return out
 }
 
-/** First error message, or null when every field is clean. */
-export function validateTerralVisible(fields: Record<string, string>): string | null {
-  return Object.values(terralErrors(fields))[0] ?? null
-}
-
 export interface DecisionDraft {
   status: 'pending' | 'decided'
   outcome: string
@@ -45,6 +40,3 @@ export function decisionErrors(d: DecisionDraft): Record<string, string> {
   if (!d.decided_at) e.decided_at = 'Informe a data da decisão.'
   return e
 }
-
-/** First message of decisionErrors, or null. */
-export const validateDecision = (d: DecisionDraft): string | null => Object.values(decisionErrors(d))[0] ?? null

@@ -1,8 +1,13 @@
+import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { routeFor } from '../src/app/routes'
+import { ROUTES, routeFor } from '../src/app/routes'
 import type { Profile } from '../src/domain/types'
 
 const p = (role: Profile['role'], status: Profile['status'], must = false) => ({ id: 'u', role, status, must_change_password: must }) as Profile
+
+it('every route view has its file under src/views (App loads it lazily, with no fallback)', () => {
+  for (const r of ROUTES.filter((x) => x.view)) expect(existsSync(`src/views/${r.view}.tsx`), r.view).toBe(true)
+})
 
 describe('routeFor', () => {
   it('follows the brief', () => {

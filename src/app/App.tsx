@@ -10,21 +10,15 @@ import Blocked from '../auth/Blocked'
 import NewPassword from '../auth/NewPassword'
 import { matchRoute, navPath, ROUTES, routeFor, sectionsFor, type AppRoute } from './routes'
 import { Shell, type Section } from './Shell'
-import { Placeholder } from './Placeholder'
 import './app.css'
 
 const PUBLIC: Record<string, ComponentType> = {
   '/login': Login, '/cadastro': Signup, '/aguardando': Pending, '/bloqueado': Blocked, '/nova-senha': NewPassword,
 }
 
-// View registry: a route's `view` is a file under src/views, loaded lazily. Adding the file is all a later
-// task needs to do; until it exists the route shows the "Em construção" placeholder.
+// View registry: a route's `view` is a file under src/views, loaded lazily (tests/routes.test.ts checks each exists).
 const files = import.meta.glob<{ default: ComponentType }>('../views/**/*.tsx')
-const viewFor = (r: AppRoute): ComponentType => {
-  const file = files[`../views/${r.view}.tsx`]
-  const fullscreen = r.area === 'both'
-  return file ? lazy(file) : () => <Placeholder title={r.title} fullscreen={fullscreen} />
-}
+const viewFor = (r: AppRoute): ComponentType => lazy(files[`../views/${r.view}.tsx`])
 const VIEWS = new Map(ROUTES.filter((r) => r.view).map((r) => [r.path, viewFor(r)]))
 
 const toSection = (r: AppRoute): Section => ({ path: navPath(r), label: r.title, short: r.nav!.short, icon: r.nav!.icon, group: r.nav!.group, end: r.nav!.end })

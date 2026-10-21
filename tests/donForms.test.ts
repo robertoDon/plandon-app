@@ -1,32 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { validateDecision, validateTerralVisible, terralErrors } from '../src/don/forms'
+import { decisionErrors, terralErrors, terralTextError } from '../src/don/forms'
 import { fmtHours1 } from '../src/don/team'
 import { slackOf } from '../src/domain/risk'
 import { realPlan } from './helpers/realPlan'
 
-describe('validateTerralVisible', () => {
+describe('terralTextError', () => {
   it('blocks a Don name and says which', () => {
-    expect(validateTerralVisible({ text: 'Fala com o David' })).toMatch(/David/)
+    expect(terralTextError('Fala com o David')).toMatch(/David/)
   })
   it('blocks "margem"', () => {
-    expect(validateTerralVisible({ effect: 'reduz a margem' })).toMatch(/margem/)
+    expect(terralTextError('reduz a margem')).toMatch(/margem/)
   })
   it('blocks Don hours', () => {
-    expect(validateTerralVisible({ effect: 'custa 21,0 h' })).toMatch(/21,0 h/)
+    expect(terralTextError('custa 21,0 h')).toMatch(/21,0 h/)
   })
   it('blocks every spelling of hours, and hidden characters in a name', () => {
-    for (const t of ['8 horas', '2h30', '21  h', '21 hrs']) expect(validateTerralVisible({ effect: t })).toMatch(/horas da Don/)
-    expect(validateTerralVisible({ text: 'Fala com o Da\u200Bvid' })).toMatch(/David/)
-    expect(validateTerralVisible({ text: 'Fala com o Dávid' })).toMatch(/David/)
+    for (const t of ['8 horas', '2h30', '21  h', '21 hrs']) expect(terralTextError(t)).toMatch(/horas da Don/)
+    expect(terralTextError('Fala com o Da\u200Bvid')).toMatch(/David/)
+    expect(terralTextError('Fala com o Dávid')).toMatch(/David/)
   })
   it('lets clean text through, and empty fields', () => {
-    expect(validateTerralVisible({ text: 'Base de vendas pendente' })).toBeNull()
-    expect(validateTerralVisible({})).toBeNull()
-    expect(validateTerralVisible({ text: '', effect: 'Equipe Don revisa' })).toBeNull()
+    expect(terralTextError('Base de vendas pendente')).toBeNull()
+    expect(terralErrors({})).toEqual({})
+    expect(terralErrors({ text: '', effect: 'Equipe Don revisa' })).toEqual({})
   })
   it('folds case and accents, and ignores partial words', () => {
-    expect(validateTerralVisible({ text: 'falar com o DAVID' })).toMatch(/David/)
-    expect(validateTerralVisible({ text: 'Davidson' })).toBeNull()
+    expect(terralTextError('falar com o DAVID')).toMatch(/David/)
+    expect(terralTextError('Davidson')).toBeNull()
   })
   it('terralErrors names every offending field', () => {
     const e = terralErrors({ text: 'ok', effect: 'margem', owner_public: 'Lucas' })
@@ -34,16 +34,16 @@ describe('validateTerralVisible', () => {
   })
 })
 
-describe('validateDecision', () => {
+describe('decisionErrors', () => {
   const base = { status: 'decided' as const, outcome: 'Aprovado', decided_by: 'Diretoria Terral', decided_at: '2026-11-10' }
   it('a decided decision needs outcome, decided_by and decided_at', () => {
-    expect(validateDecision(base)).toBeNull()
-    expect(validateDecision({ ...base, outcome: '  ' })).toMatch(/resultado/i)
-    expect(validateDecision({ ...base, decided_by: '' })).toMatch(/quem decidiu/i)
-    expect(validateDecision({ ...base, decided_at: '' })).toMatch(/data/i)
+    expect(decisionErrors(base)).toEqual({})
+    expect(decisionErrors({ ...base, outcome: '  ' }).outcome).toMatch(/resultado/i)
+    expect(decisionErrors({ ...base, decided_by: '' }).decided_by).toMatch(/quem decidiu/i)
+    expect(decisionErrors({ ...base, decided_at: '' }).decided_at).toMatch(/data/i)
   })
   it('a pending decision needs nothing', () => {
-    expect(validateDecision({ status: 'pending', outcome: '', decided_by: '', decided_at: '' })).toBeNull()
+    expect(decisionErrors({ status: 'pending', outcome: '', decided_by: '', decided_at: '' })).toEqual({})
   })
 })
 
