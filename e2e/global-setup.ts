@@ -25,6 +25,13 @@ export default async function globalSetup() {
   const { data: del } = must(await db.from('deliverable').select('code').order('sort').limit(1), 'deliverable')
   process.env.E2E_CODE = del![0].code
 
+  // Snapshot the 10/11 blocks (the Don test ticks one). Teardown puts them back, even after a failed run.
+  const snap = must(await db.from('block').select('id, done, done_at').eq('date', '2026-11-10'), 'snapshot blocks').data!
+  const restoreBlocks = async () => {
+    for (const b of snap) await db.from('block').update({ done: b.done, done_at: b.done_at }).eq('id', b.id)
+  }
+
+  const startedAt = new Date().toISOString()
   const run = randomUUID().slice(0, 8)
   const mk = async (kind: string, profile: object | null) => {
     const email = `e2e-${kind}-${run}@plandon.test`
@@ -46,10 +53,12 @@ export default async function globalSetup() {
   }
 
   async function cleanup(users: string[]) {
+    await restoreBlocks()
     if (!users.length) return
     // history rows the users wrote or that describe them; comments they wrote (none expected) go with their author
     await db.from('history').delete().in('user_id', users)
     await db.from('history').delete().in('row_ref', users)
+    await db.from('history').delete().eq('table_name', 'block').in('row_ref', snap.map((b) => b.id)).gte('at', startedAt)
     for (const id of users) await db.auth.admin.deleteUser(id)
     await db.from('history').delete().in('row_ref', users)
   }

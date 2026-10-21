@@ -28,18 +28,22 @@ test('Don ticks the first block, it survives a reload, then unticks it', async (
   await page.goto('/don/hoje?today=2026-11-10')
   const first = page.locator('.don-blocks input[type=checkbox]').first()
   await expect(first).toBeVisible()
-  const wasChecked = await first.isChecked()
-  expect(wasChecked).toBe(false) // a clean import; a leftover tick would need a manual reset
-  await tap(page) // real tap
-  await expect(first).toBeChecked()
-  await expect(page.getByText('Feito.')).toBeVisible() // toast: the write was saved
+  const was = await first.isChecked() // a leftover tick is fine: the test flips it and flips it back
+  try {
+    await tap(page)
+    await expect(first).toBeChecked({ checked: !was })
+    await expect(page.getByText(was ? 'Desmarcado.' : 'Feito.')).toBeVisible() // toast: the write was saved
+    await page.reload()
+    await expect(page.locator('.don-blocks input[type=checkbox]').first()).toBeChecked({ checked: !was })
+  } finally {
+    // best effort; global teardown restores the original state anyway
+    await page.goto('/don/hoje?today=2026-11-10')
+    const box = page.locator('.don-blocks input[type=checkbox]').first()
+    if ((await box.isChecked()) !== was) await tap(page)
+  }
+  await expect(page.locator('.don-blocks input[type=checkbox]').first()).toBeChecked({ checked: was })
   await page.reload()
-  await expect(page.locator('.don-blocks input[type=checkbox]').first()).toBeChecked()
-  await tap(page)
-  await expect(page.locator('.don-blocks input[type=checkbox]').first()).not.toBeChecked()
-  await expect(page.getByText('Desmarcado.')).toBeVisible()
-  await page.reload()
-  await expect(page.locator('.don-blocks input[type=checkbox]').first()).not.toBeChecked()
+  await expect(page.locator('.don-blocks input[type=checkbox]').first()).toBeChecked({ checked: was })
 })
 
 test('Terral user lands on /t, sees N/19 and no Don names or hours', async ({ page }) => {
