@@ -101,6 +101,21 @@ export function useEditor<T>() {
 }
 
 /**
+ * The number rules of NumberEdit, for forms too: decimal comma or point, no thousands separator, within min..max.
+ * Empty text is an error here (NumberEdit handles "no value" itself).
+ */
+export function parseAmount(text: string, { min = 0, max, unit = 'h' }: { min?: number; max: number; unit?: string }): { value: number } | { error: string } {
+  const t = text.trim().replace(/\s/g, '')
+  if (!t) return { error: 'Digite um valor.' }
+  // "1.000" is 1 in code and 1000 to a Brazilian reader: refuse it instead of guessing. Decimals take a comma ("7,5").
+  if (/^\d+\.\d{3}$/.test(t)) return { error: 'Escreva sem ponto de milhar. Decimais com vírgula, como 7,5.' }
+  const n = /^\d+([.,]\d+)?$/.test(t) ? Number(t.replace(',', '.')) : NaN
+  if (Number.isNaN(n)) return { error: 'Digite um número, como 7,5.' }
+  if (n < min || n > max) return { error: `Use um valor de ${String(min).replace('.', ',')} a ${max} ${unit}.` }
+  return { value: n }
+}
+
+/**
  * A number edited in place. Commits on Enter or blur, only when valid and changed; Escape puts the old value back.
  * Empty means "no value" (null) when `allowEmpty`. The caller's save is optimistic, so the shown value follows `value`.
  */
@@ -116,20 +131,16 @@ export function NumberEdit({ label, value, onCommit, min = 0, max, allowEmpty, u
   useEffect(() => { setText(shown(value)); setError(null) }, [value])
 
   const commit = () => {
-    const t = text.trim().replace(/\s/g, '')
-    if (!t) {
+    if (!text.trim()) {
       if (!allowEmpty) return setError('Digite um valor.')
       return value === null ? setError(null) : (setError(null), onCommit(null))
     }
-    // "1.000" is 1 in code and 1000 to a Brazilian reader: refuse it instead of guessing. Decimals take a comma ("7,5").
-    if (/^\d+\.\d{3}$/.test(t)) return setError('Escreva sem ponto de milhar. Decimais com vírgula, como 7,5.')
-    const n = /^\d+([.,]\d+)?$/.test(t) ? Number(t.replace(',', '.')) : NaN
-    if (Number.isNaN(n)) return setError('Digite um número, como 7,5.')
-    if (n < min || n > max) return setError(`Use um valor de ${min} a ${max} ${unit}.`)
-    const rule = validate?.(n)
+    const r = parseAmount(text, { min, max, unit })
+    if ('error' in r) return setError(r.error)
+    const rule = validate?.(r.value)
     if (rule) return setError(rule)
     setError(null)
-    if (n !== value) onCommit(n)
+    if (r.value !== value) onCommit(r.value)
   }
   return (
     <div className="dfield dnum">

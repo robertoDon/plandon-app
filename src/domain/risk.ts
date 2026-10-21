@@ -61,7 +61,7 @@ function groupBy<T>(xs: T[], key: (x: T) => string | null): Map<string, T[]> {
 }
 
 /** Deliverables reached from the start codes, start included, following deliverable -> deliverable edges (BFS). */
-function closure(start: string[], deps: Dependency[]): string[] {
+export function closure(start: string[], deps: Pick<Dependency, 'from_kind' | 'from_ref' | 'to_code'>[]): string[] {
   const seen = [...new Set(start)]
   for (let i = 0; i < seen.length; i++)
     for (const d of deps) if (d.from_kind === 'deliverable' && d.from_ref === seen[i] && !seen.includes(d.to_code)) seen.push(d.to_code)
