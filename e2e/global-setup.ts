@@ -22,7 +22,8 @@ export default async function globalSetup() {
   if ((await count('block')) === 0 || (await count('deliverable')) === 0) {
     throw new Error('e2e needs the plan data. The database is empty: run `npm run import:load -- --reset` and try again.')
   }
-  const { data: del } = must(await db.from('deliverable').select('code').order('sort').limit(1), 'deliverable')
+  // never a fixture row the RLS tests may be holding at the same time (codes "rls-…")
+  const { data: del } = must(await db.from('deliverable').select('code').not('code', 'like', 'rls-%').order('sort').limit(1), 'deliverable')
   process.env.E2E_CODE = del![0].code
 
   // Snapshot the 10/11 blocks (the Don test ticks one). Teardown puts them back, even after a failed run.
