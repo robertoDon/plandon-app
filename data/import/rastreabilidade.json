@@ -1,0 +1,13 @@
+[["Aba do Anexo A","Campo","Coluna","Nº","Entregável de destino","Tarefa que produz","Quem preenche"],
+["Alertas","Ação padrão de cada alerta","Contato e registro do motivo","7","3.8 Alertas operacionais","Definir quem age, o prazo de reação e a ação padrão","Don estrutura"],
+["SLA entre áreas","Escalonamento de cada evento","ESCALONAMENTO","9","3.11 Jornada interáreas","Registrar prazo, escalonamento, indicador e divergências","Don estrutura"],
+["Contribuição das áreas","Régua de cada área","RÉGUA","8","3.9 Matriz de contribuição por área","Escolher o indicador e definir a régua de cada área","Don estrutura"],
+["Reunião de resultado","Tempo de cada bloco da pauta","TEMPO","6","3.9 Matriz de contribuição por área","Propor o tempo e a saída de cada um dos seis blocos da pauta","Don estrutura"],
+["Capacitação","Quem conduz cada módulo","QUEM CONDUZ","6","3.13 Trilha de capacitação","Alinhar a agenda das turmas com as lideranças","Terral decide — P-10"],
+["Share of wallet","Conta, compra atual e plano","CONTA · COMPRA ATUAL · PLANO","9","I5 Potencial por conta e plano de carteira","Aplicar o método de estimativa por segmento aos parâmetros validados","Terral preenche — P-18"],
+["TOTAL","","","45"],
+[],
+["· Os 45 campos marcados [IMPLANTAÇÃO] no Anexo A V6 estão todos destinados: nenhum requisito sem endereço. A conferência cruzou aba por aba contra as 114 tarefas do cronograma."],
+["· Os seis campos de tempo da pauta da reunião de resultado eram a única lacuna real: tinham destino declarado no 3.9 desde 07/10 e nenhuma tarefa que os produzisse. A tarefa entrou no cronograma em 12/10, com Lucas, na janela de 02/11 a 18/12. A pendência P-16 fica resolvida."],
+["· Dois grupos dependem da Terral para fechar: quem conduz cada módulo da capacitação (P-10) e os parâmetros do share of wallet (P-18). O instrumento é da Don; o preenchimento é da Terral."],
+["· A aba Leia-me do Anexo A traz um quadragésimo sexto texto com a palavra implantação, que é a explicação do próprio anexo e não um campo a preencher."]]
