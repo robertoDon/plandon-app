@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { addDays, diffDays, fmtDate, fmtHours, parseBrDate, parseBrRange, parseHours, today } from '../src/domain/dates'
 
 describe('dates', () => {
@@ -45,5 +45,21 @@ describe('dates', () => {
     expect(today()).toBe('2026-11-02')
     window.history.pushState({}, '', '/')
     expect(today()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+  it('a production build ignores ?today= and VITE_TODAY, unless built with VITE_ALLOW_TODAY=1', () => {
+    const real = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+    window.history.pushState({}, '', '/?today=2026-11-02')
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('VITE_TODAY', '2026-12-01')
+    try {
+      expect(today()).toBe(real)
+      vi.stubEnv('VITE_ALLOW_TODAY', '1')
+      expect(today()).toBe('2026-11-02')
+      window.history.pushState({}, '', '/')
+      expect(today()).toBe('2026-12-01')
+    } finally {
+      vi.unstubAllEnvs()
+      window.history.pushState({}, '', '/')
+    }
   })
 })

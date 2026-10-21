@@ -53,11 +53,17 @@ export function diffDays(a: ISODate, b: ISODate): number {
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/
 
+/**
+ * Today in São Paulo. A test clock (?today=YYYY-MM-DD, or VITE_TODAY) works only in dev, or in a build made with
+ * VITE_ALLOW_TODAY=1: in production a shared link with ?today= cannot show the plan on another day.
+ */
 export function today(): ISODate {
-  const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('today') : null
-  if (q && ISO_RE.test(q)) return q
-  const env = import.meta.env?.VITE_TODAY
-  if (env && ISO_RE.test(env)) return env
+  const env = import.meta.env
+  if (env?.DEV || env?.VITE_ALLOW_TODAY === '1') {
+    const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('today') : null
+    if (q && ISO_RE.test(q)) return q
+    if (env.VITE_TODAY && ISO_RE.test(env.VITE_TODAY)) return env.VITE_TODAY
+  }
   // en-CA formats as YYYY-MM-DD
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 }

@@ -11,7 +11,7 @@ npm run import:load -- --reset     # load data/import into the local DB (creates
 npm run dev                        # http://localhost:5173
 ```
 
-- `?today=YYYY-MM-DD` overrides "today" on any page (e.g. `/don/hoje?today=2026-11-10`).
+- `?today=YYYY-MM-DD` overrides "today" on any page (e.g. `/don/hoje?today=2026-11-10`). Dev server only: a production build ignores it (and `VITE_TODAY`) unless built with `VITE_ALLOW_TODAY=1`.
 - `npm test` runs the unit and RLS tests (needs the local stack).
 - `npm run e2e` runs the Playwright smoke tests (needs the local stack with the import loaded; first time: `npx playwright install chromium`). It ticks and unticks one block on 2026-11-10 and restores the original state in teardown, even after a failed run. It creates and deletes its own `*.plandon.test` users and refuses to run unless `SUPABASE_URL` is localhost.
 
