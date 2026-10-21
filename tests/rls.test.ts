@@ -387,6 +387,25 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     expect((await don.from('open_item').select('visible_to_terral').eq('code', K.openHidden).single()).data).toEqual({ visible_to_terral: false })
   })
 
+  it('length limits hold at the database too (0011): comment 2000, file name 200, display name 80', async () => {
+    const c = { entity_kind: 'deliverable', entity_ref: K.deliverable, author_role: 'don', visible_to_terral: false }
+    expect((await don.from('comment').insert({ ...c, body: 'a'.repeat(2001) })).error?.code).toBe('23514')
+    const e = { entity_kind: 'deliverable', entity_ref: K.deliverable, storage_path: PATH.orphan, uploader_role: 'don', visible_to_terral: false }
+    expect((await don.from('evidence').insert({ ...e, file_name: `${'a'.repeat(197)}.pdf` })).error?.code).toBe('23514')
+    expect((await don.from('profiles').update({ display_name: 'a'.repeat(81) }).eq('id', f.ids.terral)).error?.code).toBe('23514')
+    expect((await admin().from('profiles').select('display_name').eq('id', f.ids.terral).single()).data).toEqual({ display_name: 'terral' })
+  })
+
+  it('set_must_change_password logs the Don who asked; nobody but the service role may call it (new functions are not public)', async () => {
+    for (const c of [don, terral, pending, anon()])
+      expect((await c.rpc('set_must_change_password', { p_id: f.ids.terral, p_value: true, p_by: f.ids.don })).error?.code).toBe('42501')
+    expect((await admin().rpc('set_must_change_password', { p_id: f.ids.terral, p_value: true, p_by: f.ids.don })).error).toBeNull()
+    const h = (await don.from('history').select('*').eq('table_name', 'profiles').eq('row_ref', f.ids.terral).eq('action', 'UPDATE').order('id', { ascending: false }).limit(1)).data!
+    expect(h[0]).toMatchObject({ user_id: f.ids.don, old: { must_change_password: false }, new: { must_change_password: true } })
+    expect((await admin().rpc('set_must_change_password', { p_id: randomUUID(), p_value: true, p_by: f.ids.don })).error?.code).toBe('P0002')
+    await admin().from('profiles').update({ must_change_password: false }).eq('id', f.ids.terral)
+  })
+
   it('history logs Don edits and nobody can read or rewrite it except Don reading', async () => {
     expect((await don.from('deliverable').update({ name: 'Novo' }).eq('code', K.deliverable).select()).data).toHaveLength(1)
     const h = (await don.from('history').select('*').eq('row_ref', K.deliverable).eq('action', 'UPDATE').eq('user_id', f.ids.don)).data!

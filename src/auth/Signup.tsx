@@ -36,7 +36,7 @@ export default function Signup() {
     <AuthCard title="Criar conta" sub="Depois do cadastro, a equipe Don libera o seu acesso."
       footer={<>Já tem conta? <Link to="/login">Entrar</Link></>}>
       <form onSubmit={onSubmit} noValidate>
-        <Field label="Nome" autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} error={show('name')} />
+        <Field label="Nome" autoComplete="name" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} error={show('name')} />
         <Field label="E-mail" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} error={show('email')} />
         <Field label="Senha" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)}
           error={show('password')} hint={`Pelo menos ${MIN_PASSWORD} caracteres.`} />

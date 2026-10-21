@@ -14,7 +14,7 @@ function fake(profiles: Record<string, TargetProfile>, opts: { failPassword?: bo
   const deps: Deps = {
     userIdFromJwt: async (jwt) => (jwt === 'good' ? DON : null),
     profile: async (id) => profiles[id] ?? null,
-    setMustChange: async (id, v) => (calls.push(`flag ${id === TARGET ? 'target' : id} ${v}`), null),
+    setMustChange: async (id, v, by) => (calls.push(`flag ${id === TARGET ? 'target' : id} ${v} by ${by === DON ? 'don' : by}`), null),
     setPassword: async (id) => (calls.push(`password ${id === TARGET ? 'target' : id}`), opts.failPassword ? 'weak' : null),
   }
   return { deps, calls }
@@ -71,12 +71,12 @@ describe('set-temp-password handler', () => {
     const ok = fake({ [DON]: don, [TARGET]: target })
     const r = await handle(req({ user_id: TARGET, password: SECRET }), ok.deps)
     expect([r.status, await r.json()]).toEqual([200, { ok: true }])
-    expect(ok.calls).toEqual(['flag target true', 'password target'])
+    expect(ok.calls).toEqual(['flag target true by don', 'password target'])
 
     const bad = fake({ [DON]: don, [TARGET]: target }, { failPassword: true })
     const r2 = await handle(req({ user_id: TARGET, password: SECRET }), bad.deps)
     expect([r2.status, await r2.json()]).toEqual([400, { error: 'password_rejected' }])
-    expect(bad.calls).toEqual(['flag target true', 'password target', 'flag target false'])
+    expect(bad.calls).toEqual(['flag target true by don', 'password target', 'flag target false by don'])
   })
 })
 
@@ -133,6 +133,11 @@ describe.skipIf(!served)('set-temp-password on the local stack', () => {
     const r = await call('don', { user_id: ids.target, password: 'nova-senha-123' })
     expect([r.status, await r.json()]).toEqual([200, { ok: true }])
     expect((await a.from('profiles').select('must_change_password').eq('id', ids.target).single()).data).toEqual({ must_change_password: true })
+    // the history says which Don reset whose password, and never holds the password
+    const h = (await a.from('history').select('*').eq('table_name', 'profiles').eq('row_ref', ids.target).eq('action', 'UPDATE')).data!
+    const reset = h.find((x) => x.new.must_change_password === true)
+    expect(reset).toMatchObject({ user_id: ids.don })
+    expect(JSON.stringify(h)).not.toContain('nova-senha-123')
     expect(await signIn(EMAILS.target, PASSWORD)).toBeNull()
     const c = await signIn(EMAILS.target, 'nova-senha-123')
     expect(c).not.toBeNull()

@@ -18,7 +18,7 @@ npm run dev                        # http://localhost:5173
 ## Deploy (in this order)
 
 1. **Create the Supabase project** (supabase.com, free plan). Note the project ref, URL, anon key and service-role key.
-2. **Push the schema.** `npx supabase link --project-ref <ref>`, then `npx supabase db push` (migrations 0001 to 0009).
+2. **Push the schema.** `npx supabase link --project-ref <ref>`, then `npx supabase db push` (migrations 0001 to 0011).
 3. **Auth settings** (Dashboard, Authentication): turn off "Confirm email"; set minimum password length to 8; set Site URL to the Cloudflare Pages URL (add it to Redirect URLs).
 4. **Edge Function.** Supabase injects `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` into Edge Functions, so there is no secret to set. Deploy: `npx supabase functions deploy set-temp-password`.
 5. **Load the data.** Make a separate prod env file `.env.local` (never commit) with the prod `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_*`, and a REAL `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD`. Then `npm run import:load -- --reset --yes-remote`. Switch `.env.local` back to local values afterwards. First deploy only: `--reset` wipes the domain tables, comments, evidence and history. Never run it on a live project with real edits.

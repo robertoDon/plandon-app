@@ -11,8 +11,8 @@ export interface Deps {
   /** Verifies the JWT with Supabase Auth. Null when the token is missing, expired or forged. */
   userIdFromJwt(jwt: string): Promise<string | null>
   profile(id: string): Promise<TargetProfile | null>
-  /** Each write returns an error message, or null on success. */
-  setMustChange(id: string, value: boolean): Promise<string | null>
+  /** Each write returns an error message, or null on success. `by`: the Don who asked (logged in history). */
+  setMustChange(id: string, value: boolean, by: string): Promise<string | null>
   setPassword(id: string, password: string): Promise<string | null>
 }
 
@@ -55,9 +55,9 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (!target) return json(404, { error: 'user_not_found' })
 
   // Flag first: if the password write fails, the flag goes back and nothing changed.
-  if (await deps.setMustChange(user_id, true)) return json(500, { error: 'flag_failed' })
+  if (await deps.setMustChange(user_id, true, caller)) return json(500, { error: 'flag_failed' })
   if (await deps.setPassword(user_id, password)) {
-    await deps.setMustChange(user_id, target.must_change_password)
+    await deps.setMustChange(user_id, target.must_change_password, caller)
     return json(400, { error: 'password_rejected' })
   }
   return json(200, { ok: true })

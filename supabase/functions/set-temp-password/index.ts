@@ -12,8 +12,9 @@ Deno.serve((req) =>
     userIdFromJwt: async (jwt) => (await admin.auth.getUser(jwt)).data.user?.id ?? null,
     profile: async (id) =>
       (await admin.from('profiles').select('role, status, must_change_password').eq('id', id).maybeSingle()).data,
-    setMustChange: async (id, value) =>
-      (await admin.from('profiles').update({ must_change_password: value }).eq('id', id)).error?.message ?? null,
+    // through 0011's set_must_change_password, so the history row names the Don who asked
+    setMustChange: async (id, value, by) =>
+      (await admin.rpc('set_must_change_password', { p_id: id, p_value: value, p_by: by })).error?.message ?? null,
     setPassword: async (id, password) => (await admin.auth.admin.updateUserById(id, { password })).error?.message ?? null,
   }),
 )
