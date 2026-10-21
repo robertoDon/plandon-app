@@ -28,7 +28,7 @@ npm run dev                        # http://localhost:5173
 ### Security checklist
 
 - The service-role key lives only in `.env.local` (git-ignored) and the Edge Function secret. Never in Cloudflare env vars, never in the browser.
-- After the first prod login, change the admin password.
+- The loader creates the admin with a temporary password: the first login asks for a new one. An admin that already exists keeps its password.
 - The `evidence` storage bucket stays private.
 - Never run the e2e or RLS tests against prod. The e2e refuses non-local URLs; the RLS tests skip unless the URL is local.
 - Each deploy or publish waits for the owner's go-ahead.

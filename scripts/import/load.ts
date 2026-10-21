@@ -81,11 +81,12 @@ else {
   let id = found?.id
   const fields: Record<string, unknown> = { role: 'don', status: 'approved', person_id: 'beto' }
   if (!id) {
-    // New user only: an existing account keeps its password.
+    // New user only: an existing account keeps its password (and its flag). The .env.local password is only a
+    // first key: the first login asks for a new one (/nova-senha).
     const res = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: 'Beto' } })
     if (res.error || !res.data.user) die(`admin user: ${res.error?.message}`)
     id = res.data.user!.id
-    fields.must_change_password = false
+    fields.must_change_password = true
   }
   adminId = id
   must(await db.from('profiles').update(fields).eq('id', id), 'admin profile')
