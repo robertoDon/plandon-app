@@ -2,10 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { AuthCard, Field, FormError, MIN_PASSWORD, Submit, useSubmit } from './AuthCard'
-
-/** Mirrors public.is_reserved_display_name (0006): the database refuses these names anyway. */
-export const isReservedName = (name: string) =>
-  / equipe ?don /.test(` ${name.normalize('NFKD').replace(/[\p{M}\p{Cf}]/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `)
+import { isReservedName } from './reservedName'
 
 export default function Signup() {
   const [name, setName] = useState('')

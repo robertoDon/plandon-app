@@ -287,7 +287,9 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
   it('nobody can take the name "Equipe Don" (Don authors appear to Terral under it)', async () => {
     const reserved = ['Equipe Don', 'equipe  don', ' EQUIPE DON ', 'Equipe D\u00f4n', '\u00c9quipe-Don', 'EquipeDon', 'equipe\u00a0don', 'equipe\u200bdon', 'Minha Equipe Don oficial',
       // inside a word: zero-width space, soft hyphen, word joiner, BOM, bidi override, fullwidth letter, combining accents
-      'Equipe D\u200bon', 'Equipe D\u00adon', 'Equi\u2060pe Don', 'Equipe\ufeffDon', '\u202eEquipe Don', 'Equipe \uff24on', 'Equipe Do\u0301n', 'E\u0301quipe Do\u0300n']
+      'Equipe D\u200bon', 'Equipe D\u00adon', 'Equi\u2060pe Don', 'Equipe\ufeffDon', '\u202eEquipe Don', 'Equipe \uff24on', 'Equipe Do\u0301n', 'E\u0301quipe Do\u0300n',
+      // invisible marks and fillers outside the ranges 0006 listed
+      'Equipe D\u{1D173}on', 'Equipe D\u{1BCA0}on', 'Equipe D\u3164on', 'Equipe D\u093Con']
     for (const [i, display_name] of reserved.entries()) {
       const s = await anon().auth.signUp({ email: `reserved-${i}@x.test`, password: 'rls-test-password-1', options: { data: { display_name } } })
       expect(s.error, JSON.stringify(display_name)).not.toBeNull()
