@@ -33,9 +33,23 @@ function Splash() {
   return <div className="splash" aria-busy="true" aria-label="Carregando"><div className="logo-big" aria-hidden="true">DON</div></div>
 }
 
+/** The profile could not be read: say so and offer a retry. The session is kept. */
+function Offline({ retry }: { retry: () => Promise<void> }) {
+  return (
+    <div className="splash">
+      <div className="offline" role="alert">
+        <div className="logo-big logo-now" aria-hidden="true">DON</div>
+        <h1>Sem conexão</h1>
+        <p className="sub">Não deu para falar com o servidor. Confira a internet e tente de novo.</p>
+        <button type="button" className="btn-retry" onClick={() => void retry()}>Tentar de novo</button>
+      </div>
+    </div>
+  )
+}
+
 /** Sends everyone where routeFor says; renders nothing protected until the profile is known. */
 function Guard({ children }: { children: ReactNode }) {
-  const { profile, loading } = useSession()
+  const { session, profile, loading, error, refresh } = useSession()
   const { pathname } = useLocation()
   const route = matchRoute(pathname)
   useLive()
@@ -46,7 +60,8 @@ function Guard({ children }: { children: ReactNode }) {
 
   const to = routeFor(loading ? undefined : profile, pathname)
   if (to) return <Navigate to={to} replace />
-  if (loading && route?.area !== 'public') return <Splash />
+  // With a session, the profile decides the screen: show the splash, not the login form or another public page.
+  if (loading && (session || route?.area !== 'public')) return error ? <Offline retry={refresh} /> : <Splash />
   return children
 }
 

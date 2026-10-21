@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 import { useToast } from './toast'
 import { useSession } from '../auth/useSession'
 import { TABLE_OF, type HistoryRow, type PlanData, type Profile } from '../domain/types'
-import { toTerralData, type TerralData } from '../domain/terralView'
+import { TERRAL_KEYS, toTerralData, type TerralData } from '../domain/terralView'
 
 /** Everything Don reads: the plan, plus the history feed and the accounts (author names, Acessos). */
 export type DonData = PlanData & { history: HistoryRow[]; profiles: Profile[] }
@@ -35,10 +35,6 @@ async function loadPlan(): Promise<DonData> {
   ])
   return { ...(Object.fromEntries(keys.map((k, i) => [k, tables[i]])) as unknown as PlanData), history, profiles }
 }
-
-const TERRAL_KEYS = [
-  'deliverables', 'rituals', 'ritual_occurrences', 'decisions', 'to_schedule', 'open_items', 'goals', 'dependencies', 'comments', 'evidence',
-] as const satisfies readonly (keyof TerralData)[]
 
 /** Terral's own reads: only the shared tables. RLS filters the rows (visible open items, comments, evidence). */
 async function loadTerral(): Promise<TerralData> {

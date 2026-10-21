@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { toTerralData } from '../src/domain/terralView'
+import { TERRAL_KEYS, toTerralData } from '../src/domain/terralView'
 import { realPlan } from './helpers/realPlan'
 import { findBanned } from '../src/domain/textGuard'
-import type { Comment, OpenItem } from '../src/domain/types'
+import { TABLE_OF, type Comment, type OpenItem } from '../src/domain/types'
 
 const oi = (code: string, visible_to_terral: boolean): OpenItem => ({
   code, kind: code.startsWith('X') ? 'divergencia' : 'pendencia', text: 't', owner_public: 'Terral',
@@ -58,4 +58,9 @@ describe('toTerralData', () => {
   it('open items carry no banned words', () => {
     for (const o of t.open_items) expect(findBanned(`${o.text} ${o.effect ?? ''} ${o.owner_public}`), o.code).toEqual([])
   })
+})
+
+it("Terral's own selects touch no Don-only table (same list as tests/rls.test.ts)", () => {
+  const DON_ONLY = ['person', 'task', 'block', 'to_schedule_plan', 'open_item_internal', 'traceability', 'manual_risk', 'history', 'comment_author', 'evidence_uploader', 'profiles']
+  expect(TERRAL_KEYS.map((k) => TABLE_OF[k]).filter((t) => DON_ONLY.includes(t))).toEqual([])
 })

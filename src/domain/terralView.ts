@@ -6,6 +6,11 @@ export type TerralData = Pick<
   | 'open_items' | 'goals' | 'dependencies' | 'comments' | 'evidence'
 >
 
+/** The tables Terral reads itself (useTerralData). Every one must be Terral-readable under RLS. */
+export const TERRAL_KEYS = [
+  'deliverables', 'rituals', 'ritual_occurrences', 'decisions', 'to_schedule', 'open_items', 'goals', 'dependencies', 'comments', 'evidence',
+] as const satisfies readonly (keyof TerralData)[]
+
 /**
  * What Terral can read, row for row as the RLS in 0002_security.sql / 0004_hardening.sql:
  * open items only when visible_to_terral; dependencies, comments and evidence only on

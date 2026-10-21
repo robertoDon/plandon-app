@@ -29,8 +29,22 @@ export function Shell({ sections, children }: { sections: Section[]; children: R
   const title = matchRoute(pathname)?.title ?? ''
   const tabs = sections.slice(0, 4)
   const overflow = sections.slice(4)
+  const overflowActive = overflow.some((s) => isActive(s, pathname))
+  const main = useRef<HTMLElement>(null)
+  const first = useRef(true)
+  const focusAfterSheet = useRef(false)
+  const focusMain = () => main.current?.focus({ preventScroll: true })
 
-  useEffect(() => setMoreOpen(false), [pathname])
+  // Route change: focus moves to the new content (screen readers start there). From the sheet, it waits until
+  // the dialog has closed, since closing returns focus to "Mais".
+  useEffect(() => {
+    if (first.current) return void (first.current = false)
+    if (moreOpen) {
+      focusAfterSheet.current = true
+      setMoreOpen(false)
+    } else focusMain()
+    // only the path matters
+  }, [pathname])
 
   return (
     <div className="shell">
@@ -56,7 +70,7 @@ export function Shell({ sections, children }: { sections: Section[]; children: R
         <header className={`topbar${scrolled ? ' scrolled' : ''}`}>
           <span className="topbar-title" aria-hidden={!scrolled}>{title}</span>
         </header>
-        <main id="main" tabIndex={-1}>{children}</main>
+        <main id="main" ref={main} tabIndex={-1}>{children}</main>
       </div>
 
       <nav className="tabbar" aria-label="Seções">
@@ -66,14 +80,19 @@ export function Shell({ sections, children }: { sections: Section[]; children: R
             <span className="tab-label">{s.short ?? s.label}</span>
           </NavLink>
         ))}
-        <button type="button" className={`tab${overflow.some((s) => isActive(s, pathname)) ? ' on' : ''}`}
+        <button type="button" className={`tab${overflowActive ? ' on' : ''}`} aria-current={overflowActive ? 'page' : undefined}
           aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => setMoreOpen(true)}>
           <span className="tab-icon"><Icon name="more" size={25} /></span>
           <span className="tab-label">Mais</span>
         </button>
       </nav>
 
-      <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} sections={overflow} />
+      <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} sections={overflow}
+        onClosed={() => {
+          if (!focusAfterSheet.current) return
+          focusAfterSheet.current = false
+          focusMain()
+        }} />
     </div>
   )
 }
@@ -107,7 +126,7 @@ function Me({ inSheet = false }: { inSheet?: boolean }) {
 }
 
 /** "Mais" on the phone: a bottom sheet (native dialog: focus trap, Esc, focus return). Drag the handle down to close. */
-function MoreSheet({ open, onClose, sections }: { open: boolean; onClose: () => void; sections: Section[] }) {
+function MoreSheet({ open, onClose, onClosed, sections }: { open: boolean; onClose: () => void; onClosed: () => void; sections: Section[] }) {
   const dlg = useRef<HTMLDialogElement>(null)
   const sheet = useAnimationControls()
   const drag = useDragControls()
@@ -122,11 +141,15 @@ function MoreSheet({ open, onClose, sections }: { open: boolean; onClose: () => 
     if (open && !d.open) d.showModal()
     let current = true
     void sheet.start(open ? 'open' : 'closed').then(() => {
-      if (current && !open && d.open) d.close()
+      if (current && !open && d.open) {
+        d.close()
+        onClosed()
+      }
     })
     return () => {
       current = false // reopened mid-close: keep the dialog
     }
+    // onClosed is read when the close finishes; it does not restart the animation
   }, [open, sheet])
 
   return (
