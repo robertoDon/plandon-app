@@ -1,9 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { AuthCard, Field, FormError, Submit, useSubmit } from './AuthCard'
 
+// A one-time message for the next login screen. A module value, not router state: the session guard's own
+// redirect to /login (after a sign-out) would drop router state.
+let notice: string | null = null
+export const setLoginNotice = (msg: string) => { notice = msg }
+
 export default function Login() {
+  const [shown] = useState(() => notice) // read in render, cleared after mount (StrictMode calls initializers twice)
+  useEffect(() => { notice = null }, [])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [help, setHelp] = useState(false)
@@ -22,6 +29,7 @@ export default function Login() {
   return (
     <AuthCard title="Entrar" sub="O plano de execução da estrutura comercial."
       footer={<>Primeira vez aqui? <Link to="/cadastro">Criar conta</Link></>}>
+      {shown && <p className="auth-help" role="status">{shown}</p>}
       <form onSubmit={onSubmit} noValidate>
         <Field label="E-mail" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         <Field label="Senha" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />

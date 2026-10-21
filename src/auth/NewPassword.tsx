@@ -1,11 +1,16 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { signOut, useSession } from './useSession'
 import { AuthCard, Field, FormError, MIN_PASSWORD, Submit, useSubmit } from './AuthCard'
+import { setLoginNotice } from './Login'
+
+export const SESSION_ENDED = 'Sua sessão terminou. Entre com a senha temporária que a Don te passou.'
 
 /** After a temporary password: the person picks their own, then the flag is cleared and the guard lets them in. */
 export default function NewPassword() {
   const { refresh } = useSession()
+  const navigate = useNavigate()
   const [password, setPassword] = useState('')
   const [again, setAgain] = useState('')
   const [tried, setTried] = useState(false)
@@ -22,7 +27,16 @@ export default function NewPassword() {
     if (errors.password || errors.again) return
     void submit(async () => {
       const up = await supabase.auth.updateUser({ password })
-      if (up.error) return up.error.code === 'same_password' ? 'Escolha uma senha diferente da temporária.' : 'Não deu para trocar a senha. Tente de novo.'
+      if (up.error) {
+        // A temporary password set by Don ends every session of the account: sign in again with it.
+        if (up.error.status === 403 || up.error.code === 'session_not_found') {
+          setLoginNotice(SESSION_ENDED)
+          await supabase.auth.signOut({ scope: 'local' })
+          navigate('/login', { replace: true })
+          return
+        }
+        return up.error.code === 'same_password' ? 'Escolha uma senha diferente da temporária.' : 'Não deu para trocar a senha. Tente de novo.'
+      }
       const rpc = await supabase.rpc('clear_must_change_password')
       if (rpc.error) return 'A senha mudou, mas não deu para concluir. Tente de novo.'
       await refresh()

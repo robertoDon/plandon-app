@@ -46,6 +46,8 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   }
   const { user_id, password } = body ?? {}
   if (typeof user_id !== 'string' || !UUID.test(user_id)) return json(400, { error: 'invalid_user_id' })
+  // Your own password changes on /nova-senha; a temporary one here would end your own session.
+  if (user_id.toLowerCase() === caller.toLowerCase()) return json(403, { error: 'own_account' })
   if (typeof password !== 'string' || password.length < MIN_PASSWORD) return json(400, { error: 'password_too_short', min: MIN_PASSWORD })
   if (new TextEncoder().encode(password).length > MAX_PASSWORD) return json(400, { error: 'password_too_long', max: MAX_PASSWORD })
 

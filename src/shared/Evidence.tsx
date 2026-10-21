@@ -23,6 +23,7 @@ const TYPES: Record<string, string> = {
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 }
 const ALLOWED = new Set(Object.values(TYPES))
+const INLINE = new Set(['pdf', 'png', 'jpg', 'jpeg', 'webp'])
 const SIGNED_URL_SECONDS = 60
 const BUCKET = 'evidence'
 
@@ -131,9 +132,13 @@ export function Evidence({ entity_kind, entity_ref }: { entity_kind: string; ent
   }
 
   async function open(e: EvidenceRow) {
-    // Opened before the await so popup blockers see the click; pointed at the signed URL once it is here.
-    const tab = window.open('', '_blank')
-    const { data, error: err } = await supabase.storage.from(BUCKET).createSignedUrl(e.storage_path, SIGNED_URL_SECONDS)
+    // PDF and images open in a new tab; Office files download (under their own name). The tab is opened before the
+    // await so popup blockers see the click, then pointed at the signed URL once it is here.
+    const inline = INLINE.has(extOf(e.file_name))
+    const tab = inline ? window.open('', '_blank') : null
+    const { data, error: err } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(e.storage_path, SIGNED_URL_SECONDS, inline ? undefined : { download: e.file_name })
     if (err || !data) {
       tab?.close()
       return toast.show('Não deu para abrir o arquivo. Tente de novo.', { tone: 'error' })
@@ -141,7 +146,16 @@ export function Evidence({ entity_kind, entity_ref }: { entity_kind: string; ent
     if (tab) {
       tab.opener = null
       tab.location.href = data.signedUrl
-    } else window.location.assign(data.signedUrl)
+      return
+    }
+    // A download, or a blocked popup: a link click never navigates the app itself away.
+    const a = document.createElement('a')
+    a.href = data.signedUrl
+    a.target = '_blank'
+    a.rel = 'noopener'
+    document.body.append(a)
+    a.click()
+    a.remove()
   }
 
   function flip(e: EvidenceRow) {

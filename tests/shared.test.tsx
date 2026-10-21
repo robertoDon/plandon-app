@@ -57,8 +57,8 @@ const mock = vi.hoisted(() => {
           m.calls.push({ op: 'remove', path: paths[0] })
           return later({ data: [], error: null })
         },
-        createSignedUrl: (path: string, secs: number) => {
-          m.calls.push({ op: 'sign', path, opts: secs })
+        createSignedUrl: (path: string, secs: number, o?: unknown) => {
+          m.calls.push(o ? { op: 'sign', path, opts: [secs, o] } : { op: 'sign', path, opts: secs })
           return later({ data: { signedUrl: `https://signed.test/${path}?token=t` }, error: null })
         },
       }),
@@ -274,6 +274,30 @@ describe('Evidence', () => {
     expect(writes('sign')).toEqual([{ op: 'sign', path: 'deliverable/3.1/e1-a.pdf', opts: 60 }])
     expect(tab.opener).toBeNull()
     open.mockRestore()
+  })
+
+  it('Office files download through a signed link; a blocked popup falls back to a link, never the app URL', async () => {
+    m.db.evidence = [file('e1', { file_name: 'Plano.xlsx', storage_path: 'deliverable/3.1/e1-Plano.xlsx' }), file('e2')]
+    const open = vi.spyOn(window, 'open').mockReturnValue(null) // blocked
+    const clicks: { href: string; target: string; rel: string }[] = []
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      clicks.push({ href: this.href, target: this.target, rel: this.rel })
+    })
+    const before = window.location.href
+    show(<Evidence entity_kind="deliverable" entity_ref="3.1" />)
+    fireEvent.click(await screen.findByRole('button', { name: /Abrir Plano\.xlsx/ }))
+    await waitFor(() => expect(clicks).toHaveLength(1))
+    expect(writes('sign')[0]).toEqual({ op: 'sign', path: 'deliverable/3.1/e1-Plano.xlsx', opts: [60, { download: 'Plano.xlsx' }] })
+    expect(open).not.toHaveBeenCalled() // a download opens no empty tab
+
+    fireEvent.click(screen.getByRole('button', { name: /Abrir e2\.pdf/ }))
+    await waitFor(() => expect(clicks).toHaveLength(2))
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(writes('sign')[1]).toEqual({ op: 'sign', path: 'deliverable/3.1/e2-a.pdf', opts: 60 })
+    expect(clicks[1]).toEqual({ href: 'https://signed.test/deliverable/3.1/e2-a.pdf?token=t', target: '_blank', rel: 'noopener' })
+    expect(window.location.href).toBe(before)
+    open.mockRestore()
+    click.mockRestore()
   })
 
   it('Don toggles visibility; a file name with a Don name is not shown to Terral', async () => {

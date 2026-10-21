@@ -60,6 +60,13 @@ describe('set-temp-password handler', () => {
     expect(calls).toEqual([])
   })
 
+  it('refuses the own account of the caller', async () => {
+    const { deps, calls } = fake({ [DON]: don, [TARGET]: target })
+    const r = await handle(req({ user_id: DON.toUpperCase(), password: SECRET }), deps)
+    expect([r.status, await r.json()]).toEqual([403, { error: 'own_account' }])
+    expect(calls).toEqual([])
+  })
+
   it('sets the flag, then the password; a refused password puts the flag back', async () => {
     const ok = fake({ [DON]: don, [TARGET]: target })
     const r = await handle(req({ user_id: TARGET, password: SECRET }), ok.deps)
@@ -115,7 +122,9 @@ describe.skipIf(!served)('set-temp-password on the local stack', () => {
   it('refuses callers who are not an approved Don', async () => {
     expect((await call(null, { user_id: ids.target, password: 'nova-senha-123' })).status).toBe(401)
     for (const who of ['terral', 'pending', 'target'] as const) expect((await call(who, { user_id: ids.target, password: 'nova-senha-123' })).status, who).toBe(403)
+    expect((await call('don', { user_id: ids.don, password: 'nova-senha-123' })).status).toBe(403) // not on yourself
     expect(await signIn(EMAILS.target, PASSWORD)).not.toBeNull() // untouched
+    expect(await signIn(EMAILS.don, PASSWORD)).not.toBeNull()
   })
 
   it('an approved Don sets a temporary password and the change flag', async () => {

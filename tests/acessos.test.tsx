@@ -51,7 +51,7 @@ vi.mock('../src/lib/supabase', () => ({ supabase: mock.supabase }))
 vi.mock('../src/auth/useSession', () => ({ useSession: () => ({ profile: mock.m.profile }) }))
 
 const { ToastProvider } = await import('../src/ui')
-const { default: Acessos, tempPassword } = await import('../src/views/don/Acessos')
+const { default: Acessos, tempPassword, locksSelf } = await import('../src/views/don/Acessos')
 const { m } = mock
 
 const prof = (id: string, display_name: string, o: Partial<Profile> = {}): Profile =>
@@ -172,6 +172,59 @@ describe('Acessos', () => {
     expect(m.updates).toEqual([])
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Mudar papel' }))
     await waitFor(() => expect(m.updates).toEqual([{ table: 'profiles', values: { role: 'don', person_id: 'lucas' }, match: { id: 'u-carla' } }]))
+  })
+
+  it('focus follows each step: Cancel in the confirmation, back to the opener, then the page title', async () => {
+    show()
+    fireEvent.click(within(await row('Carla')).getByRole('button', { name: /^Gerenciar/ }))
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Bloquear acesso' }))
+    const confirm = screen.getByRole('alertdialog', { name: 'Bloquear Carla?' })
+    expect(confirm).toHaveAccessibleDescription(/Carla perde o acesso/)
+    expect(document.activeElement).toBe(within(confirm).getByRole('button', { name: 'Cancelar' }))
+
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Cancelar' }))
+    expect(document.activeElement).toBe(within(dialog()).getByRole('button', { name: 'Bloquear acesso' }))
+
+    fireEvent.click(within(dialog()).getByRole('radio', { name: 'Don' }))
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Salvar' }))
+    const role = screen.getByRole('alertdialog', { name: 'Mudar o papel de Carla?' })
+    expect(document.activeElement).toBe(within(role).getByRole('button', { name: 'Cancelar' }))
+    fireEvent.click(within(role).getByRole('button', { name: 'Cancelar' }))
+    expect(document.activeElement).toBe(within(dialog()).getByRole('radio', { name: 'Terral' }))
+
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Bloquear acesso' }))
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Bloquear' }))
+    // the row moved to Bloqueados, so its "Gerenciar" is gone: focus lands on the page title
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Acessos' })))
+  })
+
+  it('the password step takes the focus on its copy button', async () => {
+    show()
+    fireEvent.click(within(await row('Carla')).getByRole('button', { name: /^Gerenciar/ }))
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Gerar senha temporária' }))
+    await waitFor(() => expect(document.activeElement).toBe(within(dialog()).getByRole('button', { name: 'Copiar senha' })))
+  })
+
+  it('the person picker leaves out people linked to another account, keeps the own link', async () => {
+    show()
+    fireEvent.click(within(await row('Carla')).getByRole('button', { name: /^Gerenciar/ }))
+    fireEvent.click(within(dialog()).getByRole('radio', { name: 'Don' }))
+    const opts = (name: string) => within(dialog()).getAllByRole('option').map((o) => o.textContent).includes(name)
+    expect(opts('Lucas')).toBe(true)
+    expect(opts('Beto')).toBe(false) // linked to the signed-in Don
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Fechar' }))
+    await waitFor(() => expect(screen.queryAllByRole('option')).toEqual([]))
+
+    fireEvent.click(within(await row('Roberto T')).getByRole('button', { name: /^Gerenciar/ }))
+    expect(opts('Beto')).toBe(true)
+  })
+
+  it('locksSelf refuses only role or status changes on the own account', () => {
+    expect(locksSelf('me', 'me', { status: 'blocked' })).toBe(true)
+    expect(locksSelf('me', 'me', { role: 'terral' })).toBe(true)
+    expect(locksSelf('me', 'me', { person_id: 'beto' })).toBe(false)
+    expect(locksSelf('me', 'other', { status: 'blocked' })).toBe(false)
+    expect(locksSelf(undefined, 'other', { role: 'don' })).toBe(false)
   })
 
   it('tempPassword: 14 unambiguous characters from crypto', () => {

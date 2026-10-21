@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useSession } from '../../auth/useSession'
 import { supabase } from '../../lib/supabase'
 import { usePlanData, useMutate, type DonData } from '../../lib/data'
@@ -38,12 +38,29 @@ function passwordError(e: unknown): string {
 type Patch = Partial<Pick<Profile, 'role' | 'status' | 'person_id'>>
 type Write = { update: Patch; match: { id: string } }
 
-type Mode =
-  | { kind: 'manage'; id: string }
+/** What the one Sheet shows. `swap`: the sheet was already open (a step replaced another), so focus moves in. */
+type Mode = (
+  | { kind: 'manage'; id: string; back?: 'block' | 'role' }
   | { kind: 'approveDon'; id: string }
   | { kind: 'block'; id: string; back: boolean }
   | { kind: 'role'; id: string; role: 'don' | 'terral'; person: string }
   | { kind: 'password'; id: string; password: string }
+) & { swap?: boolean }
+
+/** True when the write would change the signed-in user's own role or status (refused; 0009 refuses it too). */
+export function locksSelf(meId: string | null | undefined, id: string, update: Patch): boolean {
+  return !!meId && id === meId && (update.role !== undefined || update.status !== undefined)
+}
+
+/** After the sheet closes on a step whose opener is gone (the row moved lists), focus the page title. */
+function focusPageIfLost() {
+  const a = document.activeElement
+  if (a && a !== document.body && a.isConnected && !a.closest('dialog')) return
+  const h = document.querySelector<HTMLElement>('.don-page h1')
+  if (!h) return
+  h.tabIndex = -1
+  h.focus({ preventScroll: true })
+}
 
 const ROLE_LABEL = { don: 'Don', terral: 'Terral' } as const
 const byName = (a: Profile, b: Profile) => a.display_name.localeCompare(b.display_name, 'pt-BR')
@@ -62,10 +79,10 @@ export default function Acessos() {
   })
   const [mode, setMode] = useState<Mode | null>(null)
   const [open, setOpen] = useState(false)
-  const show = (m: Mode) => { setMode(m); setOpen(true) }
+  const show = (m: Mode) => { setMode({ ...m, swap: open }); setOpen(true) }
   const close = () => setOpen(false)
   const save = (id: string, update: Patch) => {
-    if (id === me?.id && (update.role !== undefined || update.status !== undefined)) return // never lock yourself out
+    if (locksSelf(me?.id, id, update)) return // never lock yourself out
     write.mutate({ update, match: { id } })
   }
 
@@ -136,9 +153,9 @@ export default function Acessos() {
               </Card>
             )}
 
-            <Sheet open={open} onClose={close} onClosed={() => setMode(null)} title={mode && target ? sheetTitle(mode, target) : ''}>
+            <Sheet open={open} onClose={close} onClosed={() => { setMode(null); focusPageIfLost() }} title={mode && target ? sheetTitle(mode, target) : ''}>
               {mode && target && (
-                <SheetBody key={`${mode.kind}-${mode.id}`} mode={mode} target={target} self={target.id === me?.id} data={d}
+                <SheetBody key={`${mode.kind}-${mode.id}`} mode={mode} title={sheetTitle(mode, target)} target={target} self={target.id === me?.id} data={d}
                   onMode={show} onClose={close} save={save} />
               )}
             </Sheet>
@@ -159,11 +176,21 @@ function sheetTitle(mode: Mode, p: Profile): string {
   }
 }
 
-function SheetBody({ mode, target: p, self, data, onMode, onClose, save }: {
-  mode: Mode; target: Profile; self: boolean; data: DonData
+function SheetBody({ mode, title, target: p, self, data, onMode, onClose, save }: {
+  mode: Mode; title: string; target: Profile; self: boolean; data: DonData
   onMode: (m: Mode) => void; onClose: () => void; save: (id: string, u: Patch) => void
 }) {
-  const people = [{ value: '', label: 'Nenhuma' }, ...data.people.map((x) => ({ value: x.id, label: x.name }))]
+  // A person already linked to another account is not offered (this account's own link stays).
+  const taken = new Set(data.profiles.filter((o) => o.id !== p.id && o.person_id).map((o) => o.person_id))
+  const people = [{ value: '', label: 'Nenhuma' }, ...data.people.filter((x) => !taken.has(x.id)).map((x) => ({ value: x.id, label: x.name }))]
+  const box = useRef<HTMLDivElement>(null)
+  const note = useId()
+  // A step that replaces another inside the open sheet takes the focus (the native dialog only focuses on open).
+  useEffect(() => {
+    if (!mode.swap) return
+    const el = box.current?.querySelector<HTMLElement>('[data-autofocus]') ?? box.current?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')
+    el?.focus()
+  }, [mode.swap])
   const [role, setRole] = useState<'don' | 'terral'>(p.role ?? 'terral')
   const [person, setPerson] = useState(p.person_id ?? '')
   const [busy, setBusy] = useState(false)
@@ -186,16 +213,16 @@ function SheetBody({ mode, target: p, self, data, onMode, onClose, save }: {
   }
 
   if (mode.kind === 'block') {
-    const cancel = () => (mode.back ? onMode({ kind: 'manage', id: p.id }) : onClose())
+    const cancel = () => (mode.back ? onMode({ kind: 'manage', id: p.id, back: 'block' }) : onClose())
     return (
-      <div className="dform">
-        <p className="dnote">
+      <div className="dform" ref={box} role="alertdialog" aria-label={title} aria-describedby={note}>
+        <p className="dnote" id={note}>
           {isPending(p)
             ? `${p.display_name} não entra no app. Dá para desbloquear depois, em Bloqueados.`
             : `${p.display_name} perde o acesso na hora, em qualquer aparelho. Dá para desbloquear depois.`}
         </p>
         <div className="dform-actions">
-          <button type="button" className="dbtn" onClick={cancel}>Cancelar</button>
+          <button type="button" className="dbtn" onClick={cancel} data-autofocus>Cancelar</button>
           <button type="button" className="dbtn danger solid" onClick={() => { save(p.id, { status: 'blocked' }); onClose() }}>
             {isPending(p) ? 'Recusar' : 'Bloquear'}
           </button>
@@ -206,14 +233,14 @@ function SheetBody({ mode, target: p, self, data, onMode, onClose, save }: {
 
   if (mode.kind === 'role') {
     return (
-      <div className="dform">
-        <p className="dnote">
+      <div className="dform" ref={box} role="alertdialog" aria-label={title} aria-describedby={note}>
+        <p className="dnote" id={note}>
           {mode.role === 'don'
             ? `${p.display_name} passa a ver tudo da Don: horas, pessoas, riscos e pendências internas.`
             : `${p.display_name} passa a ver só o que a Terral vê.`}
         </p>
         <div className="dform-actions">
-          <button type="button" className="dbtn" onClick={() => onMode({ kind: 'manage', id: p.id })}>Cancelar</button>
+          <button type="button" className="dbtn" onClick={() => onMode({ kind: 'manage', id: p.id, back: 'role' })} data-autofocus>Cancelar</button>
           <button type="button" className="dbtn primary" onClick={() => {
             save(p.id, { role: mode.role, person_id: mode.role === 'don' ? mode.person || null : null })
             onClose()
@@ -233,10 +260,10 @@ function SheetBody({ mode, target: p, self, data, onMode, onClose, save }: {
       }
     }
     return (
-      <div className="dform">
+      <div className="dform" ref={box}>
         <p className="ac-warn" role="status">Copie agora: esta senha não aparece de novo.</p>
         <p className="ac-pass">{mode.password}</p>
-        <button type="button" className="dbtn primary" onClick={() => void copy()}>{copied === 'ok' ? 'Copiada' : 'Copiar senha'}</button>
+        <button type="button" className="dbtn primary" onClick={() => void copy()} data-autofocus>{copied === 'ok' ? 'Copiada' : 'Copiar senha'}</button>
         {copied === 'fail' && <p className="dfield-error" role="alert">Não deu para copiar. Selecione a senha acima e copie.</p>}
         <p className="dnote">Passe a senha para {p.display_name} por um canal seguro. No próximo login, {p.display_name} cria uma senha nova.</p>
         <div className="dform-actions"><button type="button" className="dbtn" onClick={onClose}>Pronto</button></div>
@@ -267,6 +294,7 @@ function SheetBody({ mode, target: p, self, data, onMode, onClose, save }: {
     }
   }
   return (
+    <div ref={box}>
     <form className="dform" onSubmit={submit}>
       {self ? (
         <p className="dnote">Você é {ROLE_LABEL[p.role!]}. Você não pode mudar o próprio papel nem bloquear a própria conta.</p>
@@ -287,10 +315,12 @@ function SheetBody({ mode, target: p, self, data, onMode, onClose, save }: {
             <button type="button" className="dbtn" disabled={busy} onClick={() => void generate()}>{busy ? 'Gerando…' : 'Gerar senha temporária'}</button>
           </section>
           <section className="ac-section" aria-label="Bloqueio">
-            <button type="button" className="dbtn danger" onClick={() => onMode({ kind: 'block', id: p.id, back: true })}>Bloquear acesso</button>
+            <button type="button" className="dbtn danger" onClick={() => onMode({ kind: 'block', id: p.id, back: true })}
+              data-autofocus={mode.kind === 'manage' && mode.back === 'block' ? true : undefined}>Bloquear acesso</button>
           </section>
         </>
       )}
     </form>
+    </div>
   )
 }

@@ -205,6 +205,8 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     const orphan = `${f.ids.terral}/rls-orphan.pdf`
     expect((await store.upload(orphan, pdf, { contentType: 'application/pdf' })).error).toBeNull()
     expect((await terral2.storage.from('evidence').remove([orphan])).data ?? []).toEqual([]) // not someone else's
+    expect((await terral2.storage.from('evidence').download(orphan)).error).not.toBeNull()
+    expect((await store.download(orphan)).error).toBeNull() // the uploader still reads its own orphan
     expect(await exists(orphan)).toBe(true)
     expect((await store.remove([orphan])).data).toHaveLength(1)
     expect(await exists(orphan)).toBe(false)
@@ -295,6 +297,25 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     expect((await admin().from('profiles').select('display_name, role, status, must_change_password').eq('id', s.data.user!.id).single()).data).toEqual({
       display_name: 'Nova Pessoa', role: null, status: 'pending', must_change_password: false,
     })
+  })
+
+  it('profiles: a Don never changes their own role or status, but changes another Don', async () => {
+    for (const patch of [{ status: 'blocked' }, { role: 'terral' }, { status: 'pending' }]) {
+      const r = await don.from('profiles').update(patch).eq('id', f.ids.don).select()
+      expect(r.error?.code, JSON.stringify(patch)).toBe('42501')
+    }
+    expect((await admin().from('profiles').select('role, status').eq('id', f.ids.don).single()).data).toEqual({ role: 'don', status: 'approved' })
+    // the own person link and the password flag RPC still work
+    expect((await don.from('profiles').update({ person_id: K.person }).eq('id', f.ids.don).select()).error).toBeNull()
+    expect((await don.rpc('clear_must_change_password')).error).toBeNull()
+
+    // another Don (the "blocked" fixture, promoted for this test) can be blocked and unblocked by Don
+    const a = admin()
+    expect((await a.from('profiles').update({ role: 'don', status: 'approved' }).eq('id', f.ids.blocked)).error).toBeNull() // service role passes
+    expect((await don.from('profiles').update({ status: 'blocked' }).eq('id', f.ids.blocked).select()).data).toHaveLength(1)
+    expect((await don.from('profiles').update({ role: 'terral' }).eq('id', f.ids.blocked).select()).data).toHaveLength(1)
+    expect((await a.from('profiles').select('role, status').eq('id', f.ids.blocked).single()).data).toEqual({ role: 'terral', status: 'blocked' })
+    await a.from('profiles').update({ person_id: null }).eq('id', f.ids.don)
   })
 
   it('open items are resolved or hidden, never deleted (a delete would leak its code over Realtime)', async () => {
