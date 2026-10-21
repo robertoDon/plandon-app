@@ -28,11 +28,13 @@ export default function Agendar() {
         const list = [...d.to_schedule].sort((a, b) => byCode(a, b) || a.id.localeCompare(b.id, 'pt-BR', { numeric: true }))
         return (
           <>
-            <div className="dstats" aria-label="Horas">
-              <div className="dstat"><span className="overline">A agendar</span><b>{h1(hours((_, p) => !p.distributed))}</b></div>
-              <div className="dstat"><span className="overline">Confirmadas, sem blocos</span><b>{h1(hours((s, p) => !!s.confirmed_date && !p.distributed))}</b></div>
-              <div className="dstat"><span className="overline">Distribuídas</span><b>{h1(hours((_, p) => p.distributed))}</b></div>
-            </div>
+            <Card>
+              <div className="dstats" role="group" aria-label="Horas">
+                <div className="dstat"><span className="overline">A agendar</span><b>{h1(hours((_, p) => !p.distributed))}</b></div>
+                <div className="dstat"><span className="overline">Confirmadas</span><b>{h1(hours((s, p) => !!s.confirmed_date && !p.distributed))}</b></div>
+                <div className="dstat"><span className="overline">Distribuídas</span><b>{h1(hours((_, p) => p.distributed))}</b></div>
+              </div>
+            </Card>
             <Card>
               {list.length ? (
                 <ul className="don-list" aria-label="Itens a agendar">

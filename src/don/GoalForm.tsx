@@ -10,7 +10,7 @@ const TEXT: [keyof Draft, string, boolean, string?][] = [
   ['position', 'Posição', true, 'Norte, Suporte 1, Operacional 2…'],
   ['metric', 'Métrica', true],
   ['baseline', 'Ponto de partida', false],
-  ['state', 'Estado', true, 'Defina em palavras. "Linha de base apurada" aparece como apurada para a Terral.'],
+  ['state', 'Estado', true, 'Em palavras. A Terral lê como está.'],
   ['target', 'Meta', false],
 ]
 

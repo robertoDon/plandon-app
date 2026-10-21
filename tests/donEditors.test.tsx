@@ -134,7 +134,7 @@ describe('A agendar', () => {
     expect(rows[1]).toHaveTextContent('Distribuída')
     expect(rows[2]).toHaveTextContent('Sem horas')
     expect(screen.getByText('A agendar', { selector: '.overline' }).nextSibling).toHaveTextContent('5 h')
-    expect(screen.getByText('Confirmadas, sem blocos').nextSibling).toHaveTextContent('5 h')
+    expect(screen.getByText('Confirmadas').nextSibling).toHaveTextContent('5 h')
     expect(screen.getByText('Distribuídas').nextSibling).toHaveTextContent('9 h')
     expect(within(rows[2]).getByRole('checkbox')).toBeDisabled() // no plan row, nothing to distribute
   })
