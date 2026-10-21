@@ -1,6 +1,6 @@
 # PlanDon Terral
 
-Execution plan app for Don and Terral. React + Vite + Supabase. Hosted on Cloudflare Pages (free tier).
+Execution plan app for Don and Terral. React + Vite + Supabase. Hosted on Cloudflare Workers static assets (free tier).
 
 ## Local development
 
@@ -18,11 +18,11 @@ npm run dev                        # http://localhost:5173
 ## Deploy (in this order)
 
 1. **Create the Supabase project** (supabase.com, free plan). Note the project ref, URL, anon key and service-role key.
-2. **Push the schema.** `npx supabase link --project-ref <ref>`, then `npx supabase db push` (migrations 0001 to 0011).
-3. **Auth settings** (Dashboard, Authentication): turn off "Confirm email"; set minimum password length to 8; set Site URL to the Cloudflare Pages URL (add it to Redirect URLs).
+2. **Push the schema.** `npx supabase link --project-ref <ref>`, then `npx supabase db push` (all migrations; 0013 and 0014 add the table and function grants a hosted project lacks).
+3. **Auth settings** (Dashboard, Authentication): turn off "Confirm email"; set minimum password length to 8; set Site URL to the Cloudflare URL (add it to Redirect URLs).
 4. **Edge Function.** Supabase injects `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` into Edge Functions, so there is no secret to set. Deploy: `npx supabase functions deploy set-temp-password`.
 5. **Load the data.** Make a separate prod env file `.env.local` (never commit) with the prod `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_*`, and a REAL `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD`. Then `npm run import:load -- --reset --yes-remote`. Switch `.env.local` back to local values afterwards. First deploy only: `--reset` wipes the domain tables, comments, evidence and history. Never run it on a live project with real edits.
-6. **Cloudflare Pages.** Connect the repo. Build command `npm run build`, output directory `dist`. Env vars: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (anon key only). `public/_redirects` gives the SPA fallback.
+6. **Cloudflare.** `npx wrangler login`, then `npm run build` (with the prod `VITE_SUPABASE_*` in `.env.local`; anon key only) and `npx wrangler deploy`. `wrangler.jsonc` serves `dist` with the SPA fallback.
 7. **Keep it alive.** Supabase free projects pause after about 7 days without traffic. Daily use prevents it. If it pauses, restore it from the dashboard.
 
 ### Security checklist
