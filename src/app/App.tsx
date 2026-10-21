@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, type ComponentType, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router'
 import { useSession } from '../auth/useSession'
+import { supabase } from '../lib/supabase'
 import { useLive } from '../lib/data'
 import Login from '../auth/Login'
 import Signup from '../auth/Signup'
@@ -33,7 +34,8 @@ function Splash() {
   return <div className="splash" aria-busy="true" aria-label="Carregando"><div className="logo-big" aria-hidden="true">DON</div></div>
 }
 
-/** The profile could not be read: say so and offer a retry. The session is kept. */
+/** The profile could not be read: say so and offer a retry. The session is kept unless the person leaves
+ * (local sign-out: it needs no server, which may be the thing that is down). */
 function Offline({ retry }: { retry: () => Promise<void> }) {
   return (
     <div className="splash">
@@ -41,7 +43,10 @@ function Offline({ retry }: { retry: () => Promise<void> }) {
         <div className="logo-big logo-now" aria-hidden="true">DON</div>
         <h1>Sem conexão</h1>
         <p className="sub">Não deu para falar com o servidor. Confira a internet e tente de novo.</p>
-        <button type="button" className="btn-retry" onClick={() => void retry()}>Tentar de novo</button>
+        <div className="offline-actions">
+          <button type="button" className="btn-retry" onClick={() => void retry()}>Tentar de novo</button>
+          <button type="button" className="btn-retry btn-quiet" onClick={() => void supabase.auth.signOut({ scope: 'local' })}>Sair</button>
+        </div>
       </div>
     </div>
   )
