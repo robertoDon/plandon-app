@@ -6,6 +6,7 @@ import { useLive } from '../lib/data'
 import Login from '../auth/Login'
 import Signup from '../auth/Signup'
 import Pending from '../auth/Pending'
+import donLogo from '../assets/don-logo.png'
 import Blocked from '../auth/Blocked'
 import NewPassword from '../auth/NewPassword'
 import { matchRoute, navPath, ROUTES, routeFor, sectionsFor, type AppRoute } from './routes'
@@ -25,7 +26,7 @@ const toSection = (r: AppRoute): Section => ({ path: navPath(r), label: r.title,
 const SECTIONS = { don: sectionsFor('don').map(toSection), terral: sectionsFor('terral').map(toSection) }
 
 function Splash() {
-  return <div className="splash" aria-busy="true" aria-label="Carregando"><div className="logo-big" aria-hidden="true">DON</div></div>
+  return <div className="splash" aria-busy="true" aria-label="Carregando"><img className="logo-big" src={donLogo} alt="" /></div>
 }
 
 /** The profile could not be read: say so and offer a retry. The session is kept unless the person leaves
@@ -34,7 +35,7 @@ function Offline({ retry }: { retry: () => Promise<void> }) {
   return (
     <div className="splash">
       <div className="offline" role="alert">
-        <div className="logo-big logo-now" aria-hidden="true">DON</div>
+        <img className="logo-big logo-now" src={donLogo} alt="" />
         <h1>Sem conexão</h1>
         <p className="sub">Não deu para falar com o servidor. Confira a internet e tente de novo.</p>
         <div className="offline-actions">

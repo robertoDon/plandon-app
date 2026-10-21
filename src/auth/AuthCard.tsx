@@ -2,13 +2,14 @@ import { useId, useState, type InputHTMLAttributes, type ReactNode } from 'react
 import { motion } from 'motion/react'
 import { spring } from '../lib/motion'
 import './auth.css'
+import donLogo from '../assets/don-logo.png'
 
 /** The calm centered card every auth screen uses, with the Don mark. */
 export function AuthCard({ title, sub, children, footer }: { title: string; sub?: ReactNode; children?: ReactNode; footer?: ReactNode }) {
   return (
     <div className="auth">
       <motion.div className="auth-card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={spring}>
-        <div className="auth-mark" aria-hidden="true">DON</div>
+        <img className="auth-mark" src={donLogo} alt="" />
         <div className="auth-eyebrow">PlanDon · Terral</div>
         <h1>{title}</h1>
         {sub && <p className="auth-sub">{sub}</p>}

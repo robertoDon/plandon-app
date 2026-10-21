@@ -5,6 +5,7 @@ import { Sheet } from '../ui'
 import { matchRoute } from './routes'
 import { Icon } from './icons'
 import './shell.css'
+import donLogo from '../assets/don-logo.png'
 
 export interface Section {
   path: string
@@ -103,7 +104,7 @@ function Brand() {
   const { profile } = useSession()
   return (
     <div className="brand">
-      <div className="logo" aria-hidden="true">DON</div>
+      <img className="logo" src={donLogo} alt="" />
       <div><b>PlanDon</b><span>{profile?.role === 'don' ? 'Bastidores' : 'Terral'}</span></div>
     </div>
   )

@@ -14,11 +14,8 @@
   box-shadow: var(--shadow);
 }
 .auth-mark {
-  width: 44px; height: 44px; margin-bottom: 18px;
-  border-radius: 12px;
-  background: var(--ink); color: var(--don);
-  display: grid; place-items: center;
-  font-weight: 800; font-size: 14px; letter-spacing: -0.02em;
+  display: block; width: 56px; height: 56px; margin-bottom: 18px;
+  object-fit: contain;
 }
 .auth-eyebrow { font-size: 13px; font-weight: 600; color: var(--don-ink); letter-spacing: 0.01em; }
 .auth h1 { font-size: 28px; letter-spacing: -0.022em; margin-top: 4px; }

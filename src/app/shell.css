@@ -37,11 +37,7 @@
 .brand { display: flex; align-items: center; gap: 10px; padding: 6px 10px 18px; }
 .logo {
   width: 30px; height: 30px; flex: none;
-  border-radius: 8px;
-  background: var(--ink);
-  color: var(--don);
-  display: grid; place-items: center;
-  font-weight: 800; font-size: 11px; letter-spacing: -0.02em;
+  object-fit: contain;
 }
 .brand b { display: block; font-size: 14px; letter-spacing: -0.01em; line-height: 1.2; }
 .brand span { font-size: 12px; color: var(--ink2); }
