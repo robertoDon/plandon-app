@@ -112,25 +112,29 @@ describe('Comments', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Comentar' }))
   }
 
-  it('Don posts visible by default, sending visible_to_terral explicitly, and shows it at once', async () => {
+  it('Don posts internal by default (spec §7), sending visible_to_terral: false explicitly, and shows it at once', async () => {
     show(<Comments entity_kind="deliverable" entity_ref="3.1" canHide />)
     expect(await screen.findByText('Nenhum comentário ainda.')).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: 'Visível para a Terral' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('switch', { name: 'Visível para a Terral' })).toHaveAttribute('aria-checked', 'false')
     await post('  Base recebida  ')
     expect(await screen.findByText('Base recebida')).toBeInTheDocument() // optimistic
-    expect(writes('insert')).toEqual([{ op: 'insert', table: 'comment', values: { entity_kind: 'deliverable', entity_ref: '3.1', author_role: 'don', body: 'Base recebida', visible_to_terral: true } }])
+    expect(writes('insert')).toEqual([{ op: 'insert', table: 'comment', values: { entity_kind: 'deliverable', entity_ref: '3.1', author_role: 'don', body: 'Base recebida', visible_to_terral: false } }])
   })
 
-  it('Don with the switch off sends visible_to_terral: false', async () => {
+  it('Don turns the switch on to share one comment; the next comment starts internal again', async () => {
     show(<Comments entity_kind="deliverable" entity_ref="3.1" canHide={false} />)
-    fireEvent.click(await screen.findByRole('switch', { name: 'Visível para a Terral' }))
-    await post('Só para nós')
+    const sw = await screen.findByRole('switch', { name: 'Visível para a Terral' })
+    fireEvent.click(sw)
+    expect(sw).toHaveAttribute('aria-checked', 'true')
+    await post('Base recebida, obrigado')
     await waitFor(() => expect(writes('insert')).toHaveLength(1))
-    expect((writes('insert')[0].values as Row).visible_to_terral).toBe(false)
+    expect((writes('insert')[0].values as Row).visible_to_terral).toBe(true)
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Visível para a Terral' })).toHaveAttribute('aria-checked', 'false'))
   })
 
-  it('the guard blocks a Don name or hours while visible, and lets them through when Don-only', async () => {
+  it('the guard blocks a Don name or hours only once shared, and lets them through when Don-only', async () => {
     show(<Comments entity_kind="deliverable" entity_ref="3.1" canHide />)
+    fireEvent.click(await screen.findByRole('switch', { name: 'Visível para a Terral' }))
     await post('Falar com David amanhã')
     expect(await screen.findByRole('alert')).toHaveTextContent('David')
     await post('Isso leva 3 h')

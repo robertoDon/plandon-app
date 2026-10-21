@@ -17,8 +17,9 @@ type Toggle = { update: { visible_to_terral: boolean }; match: { id: string } }
 
 /**
  * Comments on one entity, in both roles. Don reads the plan, Terral its own (RLS-filtered) reads; authors show as the
- * server stored them (a Terral user's name, or "Equipe Don"). Don chooses "Visível para a Terral" per comment
- * (on by default; sent explicitly, the column defaults to false) and visible text passes the Terral guard.
+ * server stored them (a Terral user's name, or "Equipe Don"). Don comments are internal unless marked (spec §7): the
+ * "Visível para a Terral" switch starts off for every new comment, the value is sent explicitly, and visible text
+ * passes the Terral guard.
  * Terral comments are always visible and not guarded. `canHide` (Don only) adds a hide/show toggle per comment.
  */
 export function Comments({ entity_kind, entity_ref, canHide, preview = false }: { entity_kind: string; entity_ref: string; canHide: boolean; preview?: boolean }) {
@@ -32,7 +33,7 @@ export function Comments({ entity_kind, entity_ref, canHide, preview = false }: 
   const id = useId()
   const box = useRef<HTMLTextAreaElement>(null)
   const [body, setBody] = useState('')
-  const [visible, setVisible] = useState(true)
+  const [visible, setVisible] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const add = useMutate<Insert>('comment', {
@@ -60,6 +61,7 @@ export function Comments({ entity_kind, entity_ref, canHide, preview = false }: 
     }
     setError(null)
     setBody('')
+    setVisible(false) // each comment starts internal again
     try {
       const data = (await add.mutateAsync({ insert: { entity_kind, entity_ref, author_role: role, body: text, visible_to_terral: vis } })) as Comment[] | null
       if (!isDon && data?.length) {
@@ -67,6 +69,7 @@ export function Comments({ entity_kind, entity_ref, canHide, preview = false }: 
       }
     } catch {
       setBody((now) => now || text) // useMutate rolled back and toasted; the draft comes back
+      if (isDon) setVisible(vis)
     }
   }
 
