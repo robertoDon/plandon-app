@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PlanDon · mockup</title>
+<style>
+:root{
+  --bg:#F5F5F7; --surface:#FFFFFF; --ink:#100F0F; --ink2:#3C3B3A; --mute:#86868B; --line:rgba(0,0,0,.08);
+  --don:#FF911A; --don-ink:#B35C00; --don-soft:#FFF1E2;
+  --ok:#1E9E5A; --ok-soft:#E6F6EC; --warn:#C27C00; --warn-soft:#FFF4D6; --bad:#D93A2F; --bad-soft:#FDE9E7;
+  --r:18px; --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.chrome{position:sticky;top:0;z-index:10;display:flex;justify-content:center;gap:12px;align-items:center;padding:14px 16px;background:rgba(245,245,247,.72);backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--line)}
+.chrome p{margin:0;color:var(--mute);font-size:13px}
+.seg{display:inline-flex;background:rgba(0,0,0,.06);border-radius:10px;padding:2px}
+.seg button{border:0;background:transparent;font:inherit;font-size:13px;font-weight:600;padding:6px 16px;border-radius:8px;color:var(--ink2);cursor:pointer;transition:transform .1s}
+.seg button:active{transform:scale(.97)}
+.seg button[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.frame{max-width:1240px;margin:24px auto 64px;border-radius:14px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.12),0 0 0 1px rgba(0,0,0,.06);background:var(--bg)}
+.app{display:grid;grid-template-columns:232px 1fr;min-height:820px}
+aside{background:rgba(250,250,252,.9);border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column;gap:2px}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 18px}
+.logo{width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--don);display:grid;place-items:center;font-weight:800;font-size:13px;letter-spacing:-.02em}
+.brand b{display:block;font-size:14px;letter-spacing:-.01em}.brand span{font-size:12px;color:var(--mute)}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;font-size:14px;color:var(--ink2);font-weight:500}
+.nav i{width:18px;height:18px;border-radius:5px;background:rgba(0,0,0,.08);flex:none}
+.nav.on{background:rgba(0,0,0,.06);color:var(--ink);font-weight:600}.nav.on i{background:var(--don)}
+.nav em{margin-left:auto;font-style:normal;font-size:12px;font-weight:600;color:#fff;background:var(--bad);border-radius:99px;padding:0 7px}
+.navh{font-size:11px;font-weight:600;color:var(--mute);letter-spacing:.04em;padding:16px 10px 6px;text-transform:uppercase}
+.me{margin-top:auto;display:flex;gap:10px;align-items:center;padding:10px;border-radius:12px;background:#fff;box-shadow:var(--shadow)}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;flex:none}
+.me b{font-size:13px;display:block}.me span{font-size:12px;color:var(--mute)}
+main{padding:34px 40px 48px;display:flex;flex-direction:column;gap:22px}
+.eyebrow{font-size:13px;font-weight:600;color:var(--don-ink);letter-spacing:.01em}
+h1{font-size:34px;line-height:1.08;letter-spacing:-.025em;margin:4px 0 0;font-weight:700}
+h2{font-size:19px;letter-spacing:-.015em;margin:0;font-weight:700}
+.sub{color:var(--mute);margin:6px 0 0;font-size:15px}
+.card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:22px 24px}
+.row{display:grid;gap:22px}
+.hd{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+.hd a{font-size:14px;color:var(--don-ink);text-decoration:none;font-weight:500}
+/* health */
+.health{display:grid;grid-template-columns:auto 1fr auto;gap:26px;align-items:center;padding:26px 28px}
+.ring{width:108px;height:108px;position:relative}
+.ring svg{transform:rotate(-90deg)}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--mute);text-align:center;line-height:1.2}
+.ring b span{display:block;font-size:22px;color:var(--ink);letter-spacing:-.02em}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:5px 11px;border-radius:99px}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.ok{color:var(--ok);background:var(--ok-soft)}.warn{color:var(--warn);background:var(--warn-soft)}.bad{color:var(--bad);background:var(--bad-soft)}
+.health h3{font-size:24px;letter-spacing:-.02em;margin:10px 0 6px;line-height:1.15}
+.health p{margin:0;color:var(--ink2);max-width:560px}
+.kpis{display:grid;grid-template-columns:repeat(2,auto);gap:14px 28px;text-align:right}
+.kpis b{display:block;font-size:26px;letter-spacing:-.02em;line-height:1}.kpis span{font-size:12px;color:var(--mute)}
+/* timeline */
+.tl{position:relative;padding:8px 0 0}
+.months{display:grid;grid-template-columns:repeat(7,1fr);font-size:12px;color:var(--mute);font-weight:600;border-bottom:1px solid var(--line);padding-bottom:8px}
+.track{position:relative;height:150px;margin-top:22px}
+.today{position:absolute;top:-14px;bottom:0;width:2px;background:var(--don);border-radius:2px}
+.today::after{content:"hoje";position:absolute;top:-16px;left:-12px;font-size:11px;font-weight:700;color:var(--don-ink)}
+.ms{position:absolute;display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap;transform:translateX(-7px)}
+.dot{width:14px;height:14px;border-radius:50%;border:3px solid var(--don);background:#fff;flex:none}
+.dot.dec{border-radius:4px;transform:rotate(45deg);width:12px;height:12px;border-color:var(--ink)}
+.ms small{color:var(--mute)}
+/* list */
+.list{display:flex;flex-direction:column}
+.li{display:grid;grid-template-columns:64px 1fr auto;gap:16px;align-items:center;padding:13px 0;border-top:1px solid var(--line)}
+.li:first-child{border-top:0}
+.date{font-size:12px;color:var(--mute);font-weight:600;text-align:center;line-height:1.1}
+.date b{display:block;font-size:22px;color:var(--ink);letter-spacing:-.02em}
+.li .t{font-weight:600;letter-spacing:-.01em}.li .d{font-size:13px;color:var(--mute)}
+.tag{font-size:12px;font-weight:600;padding:3px 9px;border-radius:7px;background:rgba(0,0,0,.05);color:var(--ink2)}
+.tag.you{background:var(--don-soft);color:var(--don-ink)}
+.two{grid-template-columns:1.35fr 1fr}
+/* Don */
+.risk{display:grid;grid-template-columns:4px 1fr auto;gap:14px;padding:14px 0;border-top:1px solid var(--line);align-items:start}
+.risk:first-child{border-top:0}
+.bar{align-self:stretch;border-radius:4px}
+.risk .t{font-weight:600;letter-spacing:-.01em}.risk .d{font-size:13px;color:var(--ink2);margin-top:2px}
+.chain{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.chain span{font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;background:rgba(0,0,0,.05)}
+.src{font-size:11px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.day{display:flex;flex-direction:column;gap:8px}
+.task{display:grid;grid-template-columns:24px 1fr auto;gap:12px;align-items:center;padding:11px 12px;border-radius:12px;background:var(--bg)}
+.chk{width:22px;height:22px;border-radius:50%;border:2px solid rgba(0,0,0,.2);cursor:pointer;transition:transform .1s,background .2s,border-color .2s;display:grid;place-items:center}
+.chk:active{transform:scale(.88)}
+.chk.done{background:var(--ok);border-color:var(--ok)}
+.chk.done::after{content:"";width:9px;height:5px;border:2.5px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.task .t{font-size:14px;font-weight:600}.task .d{font-size:12px;color:var(--mute)}
+.task.done-row .t{color:var(--mute);text-decoration:line-through}
+.h{font-size:13px;font-weight:600;color:var(--ink2);font-variant-numeric:tabular-nums}
+.week{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+.wd{padding:8px 0;border-radius:10px;text-align:center;font-size:12px;color:var(--mute);font-weight:600}
+.wd b{display:block;font-size:18px;color:var(--ink)}
+.wd.on{background:var(--ink);color:#fff}.wd.on b{color:#fff}
+.load{display:flex;flex-direction:column;gap:12px}
+.lrow{display:grid;grid-template-columns:70px 1fr 64px;gap:12px;align-items:center;font-size:13px}
+.lbar{height:10px;border-radius:99px;background:rgba(0,0,0,.06);overflow:hidden;display:flex}
+.lbar i{display:block;height:100%}
+.lrow .n{text-align:right;color:var(--ink2);font-variant-numeric:tabular-nums}
+.pend{display:grid;grid-template-columns:52px 1fr auto;gap:12px;padding:11px 0;border-top:1px solid var(--line);align-items:center;font-size:14px}
+.pend:first-child{border-top:0}
+.code{font-size:12px;font-weight:700;color:var(--ink2);font-variant-numeric:tabular-nums}
+.three{grid-template-columns:1.3fr 1fr}
+.view{display:none}.view.on{display:block}
+.note{max-width:1240px;margin:0 auto;padding:0 16px;color:var(--mute);font-size:13px}
+@media (max-width:900px){.app{grid-template-columns:1fr}aside{display:none}main{padding:24px 16px}.two,.three{grid-template-columns:1fr}.health{grid-template-columns:1fr}.kpis{text-align:left}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="chrome">
+  <div class="seg" role="group" aria-label="Escolher visão">
+    <button aria-pressed="true" data-v="terral">Terral · Júlio</button>
+    <button aria-pressed="false" data-v="don">Don · Beto</button>
+  </div>
+  <p>Mockup v1 · dados reais da planilha · hoje = 21/10</p>
+</div>
+
+<!-- TERRAL -->
+<section class="view on" id="terral">
+<div class="frame"><div class="app">
+  <aside>
+    <div class="brand"><div class="logo">DON</div><div><b>PlanDon</b><span>Terral</span></div></div>
+    <div class="nav on"><i></i>Visão geral</div>
+    <div class="nav"><i></i>Marcos</div>
+    <div class="nav"><i></i>Entregas</div>
+    <div class="nav"><i></i>Decisões<em>1</em></div>
+    <div class="nav"><i></i>Metas</div>
+    <div class="navh">Reunião</div>
+    <div class="nav"><i></i>Modo reunião</div>
+    <div class="me"><div class="av" style="background:#2F6F4F">JP</div><div><b>Júlio Ponte</b><span>Diretoria Terral</span></div></div>
+  </aside>
+  <main>
+    <div>
+      <div class="eyebrow">Execução da estrutura comercial · semana 0 de 27</div>
+      <h1>Bom dia, Júlio.</h1>
+      <p class="sub">O projeto começa na segunda, 26/10. Termina em 30/04/2027.</p>
+    </div>
+
+    <div class="card health">
+      <div class="ring">
+        <svg width="108" height="108" viewBox="0 0 108 108"><circle cx="54" cy="54" r="46" fill="none" stroke="rgba(0,0,0,.06)" stroke-width="10"/><circle cx="54" cy="54" r="46" fill="none" stroke="#FF911A" stroke-width="10" stroke-linecap="round" stroke-dasharray="289" stroke-dashoffset="289"/></svg>
+        <b><span>0/19</span>entregas</b>
+      </div>
+      <div>
+        <span class="pill ok">No prazo</span>
+        <h3>Tudo pronto para a partida.</h3>
+        <p>Duas coisas dependem da Terral nesta primeira semana: a base de vendas no dia 26 e a validação do plano no dia 27. Sem a base, as três primeiras entregas atrasam.</p>
+      </div>
+      <div class="kpis">
+        <div><b>15</b><span>decisões da diretoria</span></div>
+        <div><b>7</b><span>marcos até o Natal</span></div>
+        <div><b>0</b><span>atrasos</span></div>
+        <div><b>3</b><span>pendências da Terral</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hd"><h2>A jornada</h2><a href="#">Ver todas as entregas</a></div>
+      <div class="tl">
+        <div class="months"><span>out</span><span>nov</span><span>dez</span><span>jan</span><span>fev</span><span>mar</span><span>abr</span></div>
+        <div class="track">
+          <div class="today" style="left:2.8%"></div>
+          <div class="ms" style="left:4.6%;top:10px"><span class="dot dec"></span>Plano validado <small>27/10</small></div>
+          <div class="ms" style="left:18%;top:48px"><span class="dot"></span>Lançamento interno <small>23–24/11</small></div>
+          <div class="ms" style="left:30%;top:86px"><span class="dot"></span>Carteira por representante <small>11/12</small></div>
+          <div class="ms" style="left:39%;top:10px"><span class="dot"></span>Alertas em uso <small>08/01</small></div>
+          <div class="ms" style="left:65%;top:48px"><span class="dot"></span>Painel de indicadores <small>09/03</small></div>
+          <div class="ms" style="left:73%;top:120px"><span class="dot dec"></span>Plano 27/28 aprovado <small>25/03</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row two">
+      <div class="card">
+        <div class="hd"><h2>Próximos marcos</h2><a href="#">Calendário</a></div>
+        <div class="list">
+          <div class="li"><div class="date">OUT<b>26</b></div><div><div class="t">Reunião de partida</div><div class="d">Base de vendas entregue pela Terral</div></div><span class="tag you">Com você</span></div>
+          <div class="li"><div class="date">OUT<b>27</b></div><div><div class="t">Validar o plano e nomear os donos</div><div class="d">Decisão da diretoria · D01</div></div><span class="tag you">Sua decisão</span></div>
+          <div class="li"><div class="date">NOV<b>06</b></div><div><div class="t">Cinco decisões da diretoria</div><div class="d">São Paulo, coordenação, alçada, dono do dado, origem</div></div><span class="tag you">Sua decisão</span></div>
+          <div class="li"><div class="date">NOV<b>23</b></div><div><div class="t">Lançamento interno do projeto</div><div class="d">Lideranças, liderados e representantes</div></div><span class="tag">Em Matão</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="hd"><h2>O que depende da Terral</h2></div>
+        <div class="list">
+          <div class="li"><div class="date">OUT<b>26</b></div><div><div class="t">Base de vendas</div><div class="d">Trava a segmentação e a leitura de carteira</div></div><span class="pill warn">5 dias</span></div>
+          <div class="li"><div class="date">OUT<b>26</b></div><div><div class="t">Recesso e feriados de Matão</div><div class="d">Para fechar o calendário</div></div><span class="pill warn">5 dias</span></div>
+          <div class="li"><div class="date">OUT<b>26</b></div><div><div class="t">Horários de deslocamento</div><div class="d">Para os nove dias presenciais</div></div><span class="pill warn">5 dias</span></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div></div>
+</section>
+
+<!-- DON -->
+<section class="view" id="don">
+<div class="frame"><div class="app">
+  <aside>
+    <div class="brand"><div class="logo">DON</div><div><b>PlanDon</b><span>Bastidores</span></div></div>
+    <div class="nav on"><i></i>Hoje</div>
+    <div class="nav"><i></i>Minha semana</div>
+    <div class="nav"><i></i>Riscos<em>4</em></div>
+    <div class="nav"><i></i>Pendências<em>9</em></div>
+    <div class="navh">Plano</div>
+    <div class="nav"><i></i>Entregas e tarefas</div>
+    <div class="nav"><i></i>Calendário</div>
+    <div class="nav"><i></i>Equipe e carga</div>
+    <div class="nav"><i></i>Decisões</div>
+    <div class="nav"><i></i>Visão da Terral</div>
+    <div class="me"><div class="av" style="background:#FF911A">B</div><div><b>Beto</b><span>Don · dados</span></div></div>
+  </aside>
+  <main>
+    <div>
+      <div class="eyebrow">Segunda, 26 de outubro · S01</div>
+      <h1>Seu dia, Beto.</h1>
+      <p class="sub">4 h em 2 tarefas. A equipe tem 28 h hoje.</p>
+    </div>
+
+    <div class="row three">
+      <div class="card">
+        <div class="hd"><h2>Riscos e gargalos</h2><a href="#">Todos</a></div>
+        <div>
+          <div class="risk"><div class="bar" style="background:var(--bad)"></div><div><div class="src">Automático · dependência</div><div class="t">A base de vendas vence hoje e trava 3 entregas</div><div class="d">Sem ela, nenhuma ativação comercial nos três primeiros meses.</div><div class="chain"><span>P-26</span><span>→ 3.1 Segmentação</span><span>→ I2 Carteira</span><span>→ 3.8 Alertas</span></div></div><span class="pill bad">Crítico</span></div>
+          <div class="risk"><div class="bar" style="background:var(--warn)"></div><div><div class="src">Automático · capacidade</div><div class="t">25/11 fecha com 9 h de David num dia de 9 h</div><div class="d">Comitê de 6 h e reporte de 3 h no mesmo dia presencial.</div><div class="chain"><span>X-06</span><span>P-05</span></div></div><span class="pill warn">Atenção</span></div>
+          <div class="risk"><div class="bar" style="background:var(--warn)"></div><div><div class="src">Automático · agenda</div><div class="t">104 h de David sem data confirmada</div><div class="d">Oito marcos de agenda esperam data da Terral.</div><div class="chain"><span>P-08</span></div></div><span class="pill warn">Atenção</span></div>
+          <div class="risk"><div class="bar" style="background:var(--warn)"></div><div><div class="src">Manual · Lucas</div><div class="t">Quatro entregas sem data de uso</div><div class="d">3.7, I5, I3 e 3.13 seguem com uso a completar.</div></div><span class="pill warn">Atenção</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="week">
+          <div class="wd on">SEG<b>26</b></div><div class="wd">TER<b>27</b></div><div class="wd">QUA<b>28</b></div><div class="wd">QUI<b>29</b></div><div class="wd">SEX<b>30</b></div>
+        </div>
+        <div class="day">
+          <div class="task"><div class="chk" onclick="this.classList.toggle('done');this.parentElement.classList.toggle('done-row')"></div><div><div class="t">Extrair e tratar a base de vendas</div><div class="d">3.1 Segmentação · com a Terral</div></div><span class="h">2 h</span></div>
+          <div class="task"><div class="chk" onclick="this.classList.toggle('done');this.parentElement.classList.toggle('done-row')"></div><div><div class="t">Calcular potencial e gap por conta</div><div class="d">3.1 Segmentação · prazo 11/12</div></div><span class="h">2 h</span></div>
+        </div>
+        <div class="hd" style="margin:22px 0 12px"><h2>Carga da semana</h2></div>
+        <div class="load">
+          <div class="lrow"><span>David</span><div class="lbar"><i style="width:62%;background:var(--ink)"></i><i style="width:20%;background:var(--don)"></i></div><span class="n">33 / 40 h</span></div>
+          <div class="lrow"><span>Lucas</span><div class="lbar"><i style="width:80%;background:var(--ink)"></i></div><span class="n">32 / 40 h</span></div>
+          <div class="lrow"><span>Beto</span><div class="lbar"><i style="width:50%;background:var(--ink)"></i></div><span class="n">20 / 40 h</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hd"><h2>Pendências que vencem na partida</h2><a href="#">Todas as 31</a></div>
+      <div>
+        <div class="pend"><span class="code">P-26</span><span>Entrega da base de vendas · <span style="color:var(--mute)">Terral</span></span><span class="pill bad">hoje</span></div>
+        <div class="pend"><span class="code">P-02</span><span>Cadência: War Room quinzenal a partir de janeiro? · <span style="color:var(--mute)">David com Júlio</span></span><span class="pill bad">hoje</span></div>
+        <div class="pend"><span class="code">P-20</span><span>Régua de entrada antes de a trilha existir · <span style="color:var(--mute)">David com Júlio</span></span><span class="pill bad">hoje</span></div>
+        <div class="pend"><span class="code">X-01</span><span>Data da D14: 26/02 na planilha contra 05/02 no documento técnico · <span style="color:var(--mute)">divergência</span></span><span class="pill bad">hoje</span></div>
+      </div>
+    </div>
+  </main>
+</div></div>
+</section>
+<p class="note">Rascunho de layout e tom. Cores Don, base Apple clara. Os checks da tarefa funcionam; o resto é estático.</p>
+<script>
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===b.dataset.v));
+});
+</script>
+</body>
+</html>
