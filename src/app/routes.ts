@@ -10,7 +10,7 @@ export interface AppRoute {
   view?: string
   title: string
   /** Shown in the sidebar / tab bar. The first 4 nav entries of a role fill the phone tab bar. */
-  nav?: { icon: string; group?: string; end?: boolean }
+  nav?: { icon: string; group?: string; end?: boolean; short?: string }
 }
 
 export const ROUTES: AppRoute[] = [
@@ -21,7 +21,7 @@ export const ROUTES: AppRoute[] = [
   { path: '/nova-senha', area: 'public', title: 'Nova senha' },
 
   { path: '/don/hoje', area: 'don', view: 'don/Hoje', title: 'Hoje', nav: { icon: 'today' } },
-  { path: '/don/semana', area: 'don', view: 'don/Semana', title: 'Minha semana', nav: { icon: 'week' } },
+  { path: '/don/semana', area: 'don', view: 'don/Semana', title: 'Minha semana', nav: { icon: 'week', short: 'Semana' } },
   { path: '/don/riscos', area: 'don', view: 'don/Riscos', title: 'Riscos', nav: { icon: 'risk' } },
   { path: '/don/pendencias', area: 'don', view: 'don/Pendencias', title: 'Pendências', nav: { icon: 'pending' } },
   { path: '/don/entregas', area: 'don', view: 'don/Entregas', title: 'Entregas e tarefas', nav: { icon: 'deliverable', group: 'Plano' } },

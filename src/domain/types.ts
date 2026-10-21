@@ -178,6 +178,8 @@ export interface Comment {
   body: string
   visible_to_terral: boolean
   created_at: string
+  /** Don-only embed (select '*, comment_author(author_id)'); absent for Terral. */
+  comment_author?: { author_id: string } | null
 }
 
 export interface Evidence {
@@ -190,6 +192,8 @@ export interface Evidence {
   uploader_name: string // set by the server, as Comment.author_name
   visible_to_terral: boolean
   created_at: string
+  /** Don-only embed (select '*, evidence_uploader(uploader_id)'); absent for Terral. */
+  evidence_uploader?: { uploader_id: string } | null
 }
 
 /** Don-only: who wrote a comment (Terral never reads author ids). */
