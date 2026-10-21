@@ -6,6 +6,7 @@ import type { Profile } from '../../domain/types'
 import { Card, Pill, Segmented, Sheet } from '../../ui'
 import { DonPage } from '../../don/Page'
 import { FormActions, SelectField } from '../../don/fields'
+import { dayOf, exactTime } from '../../shared/entity'
 import '../../shared/shared.css'
 
 // No 0/O/o, 1/l/I: the password is read aloud or typed from a screen.
@@ -66,6 +67,17 @@ const ROLE_LABEL = { don: 'Don', terral: 'Terral' } as const
 const byName = (a: Profile, b: Profile) => a.display_name.localeCompare(b.display_name, 'pt-BR')
 const isPending = (p: Profile) => p.status === 'pending' || (p.status === 'approved' && !p.role)
 
+/** Who signed up: the e-mail and the sign-up date, so nobody is approved by name alone. */
+function SignedUp({ p }: { p: Profile }) {
+  if (!p.email && !p.created_at) return <span>Cadastro novo</span>
+  return (
+    <span className="ac-mail">
+      {p.email && <span>{p.email}</span>}
+      {p.created_at && <time dateTime={p.created_at} title={exactTime(p.created_at)}>Cadastro em {dayOf(p.created_at)}</time>}
+    </span>
+  )
+}
+
 /**
  * Don: who may use the app. Pending sign-ups are approved as Terral (one tap) or as Don (with the person they are);
  * approved accounts change role, get a temporary password, or are blocked. Blocking and role changes ask first:
@@ -105,7 +117,7 @@ export default function Acessos() {
                 <ul className="don-list" aria-label="Aguardando liberação">
                   {pending.map((p) => (
                     <li key={p.id} className="ac-row many">
-                      <span className="ac-who"><b>{p.display_name}</b><span>Cadastro novo</span></span>
+                      <span className="ac-who"><b>{p.display_name}</b><SignedUp p={p} /></span>
                       <span className="ac-acts">
                         <button type="button" className="dbtn small primary" onClick={() => save(p.id, { role: 'terral', status: 'approved', person_id: null })}>Liberar como Terral</button>
                         <button type="button" className="dbtn small" onClick={() => show({ kind: 'approveDon', id: p.id })}>Liberar como Don</button>
@@ -129,6 +141,7 @@ export default function Acessos() {
                         {p.id === me?.id && <Pill tone="mute">Você</Pill>}
                         {p.must_change_password && <Pill tone="warn">Senha temporária</Pill>}
                       </span>
+                      {(p.email || p.created_at) && <SignedUp p={p} />}
                     </span>
                     <span className="ac-acts">
                       <button type="button" className="dbtn small" aria-label={`Gerenciar ${p.display_name}`} onClick={() => show({ kind: 'manage', id: p.id })}>Gerenciar</button>

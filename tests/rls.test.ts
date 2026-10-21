@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { admin, anon, cleanup, extraRefs, ID, K, localStack, PATH, setup, SIGNUP_EMAIL, TERRAL_FILE, type Fixture } from './helpers/supa'
+import { admin, anon, cleanup, EMAILS, extraRefs, ID, K, localStack, PATH, setup, SIGNUP_EMAIL, TERRAL_FILE, type Fixture } from './helpers/supa'
 
 const DON_ONLY = ['person', 'task', 'block', 'to_schedule_plan', 'open_item_internal', 'traceability', 'manual_risk', 'history', 'comment_author', 'evidence_uploader']
 const SHARED = ['deliverable', 'ritual', 'ritual_occurrence', 'decision', 'to_schedule', 'open_item', 'goal', 'dependency', 'comment', 'evidence']
@@ -299,6 +299,21 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     })
   })
 
+  it('profiles carry the sign-up e-mail and date (Acessos never approves blind); Terral reads only its own', async () => {
+    const { data } = await admin().auth.admin.listUsers({ perPage: 1000 })
+    const users = data.users.filter((u) => u.email?.endsWith('@x.test'))
+    const profs = (await don.from('profiles').select('id, email, created_at')).data ?? []
+    for (const u of users) {
+      const p = profs.find((x) => x.id === u.id)
+      expect(p, u.email).toBeDefined()
+      expect(p!.email).toBe(u.email)
+      expect(Math.abs(new Date(p!.created_at).getTime() - new Date(u.created_at).getTime())).toBeLessThan(1000)
+    }
+    expect((await terral.from('profiles').select('id, email')).data).toEqual([{ id: f.ids.terral, email: EMAILS.terral }])
+    expect((await terral.from('profiles').select('email').eq('id', f.ids.don)).data).toEqual([])
+    expect((await pending.from('profiles').select('email')).data).toEqual([{ email: EMAILS.pending }])
+  })
+
   it('profiles: a Don never changes their own role or status, but changes another Don', async () => {
     for (const patch of [{ status: 'blocked' }, { role: 'terral' }, { status: 'pending' }]) {
       const r = await don.from('profiles').update(patch).eq('id', f.ids.don).select()
@@ -330,7 +345,7 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     const h = (await don.from('history').select('*').eq('table_name', 'profiles').eq('row_ref', f.ids.pending).eq('action', 'UPDATE')).data!
     const last = h.find((r) => r.new.status === 'approved')
     expect(last).toMatchObject({ user_id: f.ids.don, old: { status: 'pending', role: null }, new: { role: 'terral' } })
-    expect(Object.keys(last.new).sort()).toEqual(['display_name', 'id', 'must_change_password', 'person_id', 'role', 'status'])
+    expect(Object.keys(last.new).sort()).toEqual(['created_at', 'display_name', 'email', 'id', 'must_change_password', 'person_id', 'role', 'status']) // e-mail and date: Don reads them anyway (0010)
     await admin().from('profiles').update({ status: 'pending', role: null }).eq('id', f.ids.pending)
   })
 

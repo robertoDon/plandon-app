@@ -226,6 +226,9 @@ export interface Profile {
   status: 'pending' | 'approved' | 'blocked'
   person_id: string | null
   must_change_password: boolean
+  /** Sign-up e-mail and time, copied from auth.users (0010). Read only by the user and by Don. */
+  email?: string | null
+  created_at?: string
 }
 
 export interface PlanData {

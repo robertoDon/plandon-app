@@ -72,9 +72,9 @@ beforeEach(() => {
     person: [{ id: 'beto', name: 'Beto' }, { id: 'lucas', name: 'Lucas' }],
     profiles: ([
       ME,
-      prof('u-ana', 'Ana'),
+      prof('u-ana', 'Ana', { email: 'ana@empresa.com.br', created_at: '2026-10-21T01:30:00Z' }),
       prof('u-lu', 'Lucas Souza'),
-      prof('u-carla', 'Carla', { role: 'terral', status: 'approved' }),
+      prof('u-carla', 'Carla', { role: 'terral', status: 'approved', email: 'carla@terral.com.br', created_at: '2026-10-01T15:00:00Z' }),
       prof('u-bia', 'Bia', { role: 'terral', status: 'blocked' }),
     ] as unknown as Row[]),
   }
@@ -91,6 +91,17 @@ const row = async (name: string) => (await screen.findByText(name)).closest('li'
 const dialog = () => screen.getAllByRole('dialog').find((d) => d.hasAttribute('open'))!
 
 describe('Acessos', () => {
+  it('shows who signed up: the e-mail and the sign-up date (São Paulo), pending and approved', async () => {
+    show()
+    const ana = await row('Ana')
+    expect(ana).toHaveTextContent('ana@empresa.com.br')
+    expect(ana).toHaveTextContent('Cadastro em 20/10/2026') // 01:30 UTC is still the 20th in São Paulo
+    const carla = await row('Carla')
+    expect(carla).toHaveTextContent('carla@terral.com.br')
+    expect(carla).toHaveTextContent('Cadastro em 01/10/2026')
+    expect(await row('Lucas Souza')).toHaveTextContent('Cadastro novo') // no e-mail known: as before
+  })
+
   it('approves a pending sign-up as Terral in one tap', async () => {
     show()
     fireEvent.click(within(await row('Ana')).getByRole('button', { name: 'Liberar como Terral' }))

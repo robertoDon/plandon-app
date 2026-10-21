@@ -45,5 +45,8 @@ export function relTime(iso: string, now = Date.now()): string {
   return full.format(new Date(iso))
 }
 
+/** dd/mm/aaaa of a timestamp, in São Paulo. */
+export const dayOf = (iso: string) => full.format(new Date(iso))
+
 /** Full date and time for a tooltip. */
 export const exactTime = (iso: string) => fullTime.format(new Date(iso))
