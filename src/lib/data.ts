@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { supabase } from './supabase'
 import { useToast } from '../ui/Toast'
 import { useSession } from '../auth/useSession'
@@ -66,8 +66,12 @@ export function useTerralData() {
   return profile?.role === 'don' ? don : terral
 }
 
-const refetchAll = (qc: ReturnType<typeof useQueryClient>) =>
+const refetchAll = (qc: QueryClient) =>
   Promise.all([qc.invalidateQueries({ queryKey: PLAN }), qc.invalidateQueries({ queryKey: TERRAL })])
+
+/** Every write carries this key (plus its table), so a refetch can wait until no write is in flight. */
+const WRITE = ['write'] as const
+const writing = (qc: QueryClient) => qc.isMutating({ mutationKey: WRITE })
 
 /**
  * One Realtime channel on every table in the publication. A burst of changes (a loader run, a multi-row edit)
@@ -86,7 +90,9 @@ export function useLive() {
         // throttle, not debounce: a steady stream still refreshes every 300 ms
         timer ??= setTimeout(() => {
           timer = undefined
-          void refetchAll(qc)
+          // Held while a write is in flight: its own refetch at the end brings this change too, and a refetch
+          // now would wipe the optimistic state on screen.
+          if (!writing(qc)) void refetchAll(qc)
         }, 300)
       })
       .subscribe()
@@ -124,13 +130,26 @@ export function errorText(e: unknown): string {
 }
 
 /**
+ * Optimistic writes in flight on a client: the plan as the server last confirmed it (`base`) and the changes
+ * still waiting for an answer. The cache shows base + every pending change, so one write's rollback removes only
+ * its own change and keeps the others.
+ */
+type Change = (d: DonData) => DonData
+const inflight = new WeakMap<QueryClient, { base: DonData; changes: Map<number, Change> }>()
+let seq = 0
+const replay = (p: { base: DonData; changes: Map<number, Change> }) => [...p.changes.values()].reduce((d, f) => f(d), p.base)
+
+/**
  * Writes one table (or calls one RPC). Records nothing itself: a database trigger writes the history.
- * `optimistic` updates the plan cache at once; an error rolls it back and shows a toast.
+ * `optimistic` updates the plan cache at once; an error rolls back that write's change only and shows a toast.
+ * The plan is refetched (fire-and-forget) once the last write in flight settles, so the promise of
+ * `mutateAsync` resolves as soon as the server answers.
  */
 export function useMutate<T extends Write>(table: string, opts: { optimistic?: (old: DonData, vars: T) => DonData } = {}) {
   const qc = useQueryClient()
   const toast = useToast()
   return useMutation({
+    mutationKey: [...WRITE, table],
     mutationFn: async (w: T) => {
       const { data, error } = await run(table, w)
       if (error) throw error
@@ -139,14 +158,33 @@ export function useMutate<T extends Write>(table: string, opts: { optimistic?: (
     onMutate: async (vars: T) => {
       if (!opts.optimistic) return
       await qc.cancelQueries({ queryKey: PLAN })
-      const prev = qc.getQueryData<DonData>(PLAN)
-      if (prev) qc.setQueryData(PLAN, opts.optimistic(prev, vars))
-      return { prev }
+      const cur = qc.getQueryData<DonData>(PLAN)
+      if (!cur) return
+      let p = inflight.get(qc)
+      if (!p) inflight.set(qc, (p = { base: cur, changes: new Map() }))
+      const id = ++seq
+      const change: Change = (d) => opts.optimistic!(d, vars)
+      p.changes.set(id, change)
+      qc.setQueryData(PLAN, change(cur))
+      return { id }
+    },
+    onSuccess: (_data, _vars, ctx) => {
+      const p = inflight.get(qc)
+      const change = ctx?.id ? p?.changes.get(ctx.id) : undefined
+      if (!p || !change) return
+      p.base = change(p.base) // the server took it
+      p.changes.delete(ctx!.id)
     },
     onError: (e, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(PLAN, ctx.prev)
+      const p = inflight.get(qc)
+      if (p && ctx?.id && p.changes.delete(ctx.id)) qc.setQueryData(PLAN, replay(p))
       toast.show(errorText(e), { tone: 'error' })
     },
-    onSettled: () => refetchAll(qc),
+    onSettled: () => {
+      const p = inflight.get(qc)
+      if (p && !p.changes.size) inflight.delete(qc)
+      // This write still counts as in flight here. Only the last one refetches, without waiting for it.
+      if (writing(qc) <= 1) void refetchAll(qc)
+    },
   })
 }

@@ -1,13 +1,13 @@
-import { fmtDate, fmtHours, today as todayOf } from '../../domain/dates'
+import { fmtDate, fmtHours } from '../../domain/dates'
 import { dayCap } from '../../domain/risk'
 import { usePlanData } from '../../lib/data'
 import { Card, Empty, LoadBar, Pill } from '../../ui'
-import { BlockRow, byOrder, cap, sumHours, useToggleBlock, usePerson, weekday, weekOf, windowText } from '../../don/blocks'
+import { BlockRow, byOrder, cap, sumHours, useToday, useToggleBlock, usePerson, weekday, weekOf, windowText } from '../../don/blocks'
 
 /** The person's blocks Mon–Sun of this week, day by day. Past blocks still open say so. */
 export default function Semana() {
   const { data, status } = usePlanData()
-  const t = todayOf()
+  const t = useToday()
   const week = weekOf(t)
   const { person, picker } = usePerson(data?.people ?? [])
   const toggle = useToggleBlock()

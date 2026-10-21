@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useSession } from '../../auth/useSession'
-import { addDays, fmtDate, fmtHours, today as todayOf } from '../../domain/dates'
+import { addDays, fmtDate, fmtHours } from '../../domain/dates'
 import { dayCap, evaluate } from '../../domain/risk'
 import type { Block, Person } from '../../domain/types'
 import { usePlanData } from '../../lib/data'
 import { Card, Empty, LoadBar, Pill } from '../../ui'
-import { BlockRow, byOrder, longDay, sumHours, useToggleBlock, usePerson, weekday, weekOf, windowText } from '../../don/blocks'
+import { BlockRow, byOrder, longDay, sumHours, useToday, useToggleBlock, usePerson, weekday, weekOf, windowText } from '../../don/blocks'
 import { RiskCard } from '../../don/RiskCard'
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
@@ -15,9 +15,10 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export default function Hoje() {
   const { data, status } = usePlanData()
   const { profile } = useSession()
-  const t = todayOf()
+  const t = useToday()
   const week = weekOf(t)
   const [sel, setSel] = useState(t)
+  useEffect(() => setSel(t), [t]) // past midnight: the new today
   const { person, picker } = usePerson(data?.people ?? [])
   const toggle = useToggleBlock()
   const risks = useMemo(() => (data ? evaluate(data, t).risks : []), [data, t])
@@ -26,7 +27,7 @@ export default function Hoje() {
   const head = (sub?: string) => (
     <header className="don-head">
       <div className="eyebrow">{longDay(t)}{data && weekCode(data.blocks, week)}</div>
-      <h1>Seu dia, {first}.</h1>
+      <h1>{first ? `Seu dia, ${first}.` : 'Seu dia.'}</h1>
       {sub && <p className="sub">{sub}</p>}
       {picker}
     </header>
@@ -43,6 +44,8 @@ export default function Hoje() {
     teamToday && `A equipe tem ${fmtHours(teamToday)} hoje.`,
   ].filter(Boolean).join(' ')
   const day = onDay(sel).sort(byOrder)
+  const dayH = sumHours(day)
+  const dayLimit = person && day.length ? dayCap(person, day) : Infinity
   const names = new Map(data.deliverables.map((d) => [d.code, d.name]))
   const inWeek = data.blocks.filter((b) => b.person_id && b.date >= week[0] && b.date <= week[6])
 
@@ -57,6 +60,7 @@ export default function Hoje() {
       <div className="don-grid">
         <Card className="don-day">
           <WeekStrip week={week} today={t} selected={sel} onSelect={setSel} blocks={mine} person={person} />
+          {dayH > dayLimit && <p className="don-over"><Pill tone="bad">{fmtHours(dayH)}, acima do limite de {fmtHours(dayLimit)}</Pill></p>}
           {day.length ? (
             <ul className="don-list don-blocks" aria-label={sel === t ? 'Hoje' : longDay(sel)}>
               {day.map((b) => <BlockRow key={b.id} block={b} names={names} onToggle={toggle} />)}
@@ -122,7 +126,7 @@ function WeekStrip({ week, today, selected, onSelect, blocks, person }: {
             className={d === today ? 'is-today' : undefined}>
             <span>{weekday(d).slice(0, 3).toUpperCase()}</span>
             <b className="num">{+d.slice(8)}</b>
-            <i className={over ? 'bad' : bs.length ? 'on' : undefined} aria-hidden="true" />
+            <i className={over ? 'bad' : bs.length ? 'on' : undefined} aria-hidden="true">{over && '!'}</i>
           </button>
         )
       })}

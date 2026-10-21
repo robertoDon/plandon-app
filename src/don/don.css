@@ -31,13 +31,19 @@
 .don-week button b { font-size: 18px; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink); }
 .don-week button i { width: 6px; height: 6px; margin-top: 3px; border-radius: 50%; background: transparent; }
 .don-week button i.on { background: var(--mute); }
-.don-week button i.bad { background: var(--bad); }
+.don-week button i.bad { /* over the cap: a "!" badge, not just a red dot */
+  display: grid; place-items: center; width: 14px; height: 14px; margin-top: 0;
+  background: var(--bad); color: #fff; font-size: 10px; font-weight: 800; font-style: normal; line-height: 1;
+}
 .don-week button.is-today b { color: var(--don-ink); }
 .don-week button:hover { background: rgba(0, 0, 0, 0.04); }
 .don-week button:active { transform: scale(0.95); }
 .don-week button[aria-pressed="true"] { background: var(--ink); color: #fff; }
 .don-week button[aria-pressed="true"] b { color: #fff; }
 .don-week button[aria-pressed="true"] i.on { background: rgba(255, 255, 255, 0.7); }
+/* 7 targets of 44px at 375px: the strip borrows part of the card padding */
+@media (max-width: 420px) { .don-week { gap: 2px; margin-inline: -8px; } }
+.don-over { margin: 0 0 12px; }
 
 /* Block rows */
 .don-blocks { display: flex; flex-direction: column; gap: 8px; }

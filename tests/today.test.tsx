@@ -57,8 +57,8 @@ const person = (id: string, name: string): Person => ({ id, name, net_capacity_h
 const block = (id: string, date: string, hours: number, person_id = 'beto', description = `Tarefa ${id}`): Block => ({
   id, date, week: 'S03', type: 'Tarefa', front: 'Vendas', code: '3.1', description, person_id, hours, due: null, task_id: null, done: false, done_at: null,
 })
-const item = (code: string, due: string): OpenItem => ({
-  code, kind: 'pendencia', text: `Item ${code}`, owner_public: 'Terral', due, due_text: null, effect: null, status: 'open', visible_to_terral: true,
+const item = (code: string, due: string | null, more: Partial<OpenItem> = {}): OpenItem => ({
+  code, kind: 'pendencia', text: `Item ${code}`, owner_public: 'Terral', due, due_text: null, effect: null, status: 'open', visible_to_terral: true, ...more,
 })
 
 function fixture(): Rows {
@@ -73,7 +73,15 @@ function fixture(): Rows {
       block('d1', '2026-11-10', 3, 'david'),
     ],
     deliverable: [{ code: '3.1', name: 'Segmentação', front: 'Vendas' }],
-    open_item: [item('P-01', '2026-11-12')],
+    open_item: [
+      item('P-10', '2026-11-12'), // same due as P-02: numeric code order puts P-02 first
+      item('P-02', '2026-11-12'),
+      item('P-03', '2026-11-05'), // overdue
+      item('P-09', '2026-11-18'), // 8 days out: not yet
+      item('P-04', '2026-11-11', { status: 'resolved' }),
+      item('X-01', '2026-11-11', { kind: 'divergencia', visible_to_terral: false }),
+      item('P-11', null),
+    ],
   }
 }
 
@@ -174,9 +182,13 @@ describe('Hoje', () => {
     const wed = within(strip).getByRole('button', { name: /11\/11/ })
     expect(wed).toHaveAccessibleName(expect.stringContaining('acima do limite'))
     expect(within(strip).getByRole('button', { name: /10\/11/ })).not.toHaveAccessibleName(expect.stringContaining('acima do limite'))
+    // not color alone: a "!" badge on the day, and words for the selected one
+    expect(wed.querySelector('i')).toHaveTextContent('!')
+    expect(screen.queryByText(/acima do limite de/)).toBeNull()
     fireEvent.click(wed)
     expect(wed).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('checkbox', { name: 'Tarefa b2' })).toBeInTheDocument()
+    expect(screen.getByText('9 h, acima do limite de 8 h')).toBeInTheDocument()
   })
 
   it('weekly load bar per person', async () => {
@@ -185,9 +197,28 @@ describe('Hoje', () => {
     expect(screen.getByRole('img', { name: 'David: 3 h de 40 h' })).toBeInTheDocument()
   })
 
-  it('pendências due within 7 days', async () => {
+  it('pendências: open ones due within 7 days or overdue, by due date then code', async () => {
     mount('2026-11-10')
-    expect(await screen.findByText('P-01')).toBeInTheDocument()
+    const card = await screen.findByRole('region', { name: 'Pendências que vencem' })
+    const codes = within(card).getAllByRole('listitem').map((li) => li.querySelector('.don-code')!.textContent)
+    expect(codes).toEqual(['P-03', 'P-02', 'P-10'])
+    expect(within(card).getByText('venceu 05/11')).toBeInTheDocument()
+  })
+
+  it('an account with no display name: "Seu dia."', async () => {
+    m.profile = { ...don('beto'), display_name: '  ' }
+    mount('2026-11-10')
+    await screen.findByRole('checkbox', { name: 'Extrair a base de vendas' })
+    expect(screen.getByRole('heading', { level: 1, name: 'Seu dia.' })).toBeInTheDocument()
+  })
+
+  it('past midnight (checked on focus) the page moves to the new today', async () => {
+    mount('2026-11-10')
+    const strip = await screen.findByRole('group', { name: 'Semana' })
+    window.history.replaceState({}, '', '/don/hoje?today=2026-11-11')
+    fireEvent.focus(window)
+    await waitFor(() => expect(within(strip).getByRole('button', { name: /11\/11/ })).toHaveAttribute('aria-pressed', 'true'))
+    expect(screen.getByText(/Quarta, 11 de novembro/)).toBeInTheDocument()
   })
 
   it('no person linked to the account: a person picker instead of failing', async () => {

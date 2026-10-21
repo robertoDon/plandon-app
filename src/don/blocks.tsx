@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useSession } from '../auth/useSession'
-import { addDays, fmtDate, fmtHours, type ISODate } from '../domain/dates'
+import { addDays, fmtDate, fmtHours, today as todayOf, type ISODate } from '../domain/dates'
 import type { Block, Person } from '../domain/types'
 import { useMutate, type DonData } from '../lib/data'
 import { Check, Segmented, useToast } from '../ui'
@@ -28,6 +28,24 @@ export function useToggleBlock() {
     )
   }
   return toggleBlock
+}
+
+/** Today (São Paulo, or ?today=), re-checked every minute and on return to the tab, so a page left open moves
+ * on at midnight. */
+export function useToday(): ISODate {
+  const [t, setT] = useState(todayOf)
+  useEffect(() => {
+    const check = () => setT(todayOf())
+    const timer = setInterval(check, 60_000)
+    window.addEventListener('focus', check)
+    document.addEventListener('visibilitychange', check)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', check)
+      document.removeEventListener('visibilitychange', check)
+    }
+  }, [])
+  return t
 }
 
 /**
