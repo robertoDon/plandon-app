@@ -49,9 +49,12 @@ export const HEALTH: Record<Health, { tone: Tone; label: string; head: string }>
   late: { tone: 'bad', label: 'Atrasado', head: 'Há entregas fora do prazo.' },
 }
 
-/** The in-use date as text: the confirmed or planned date, else the sheet's own words ("A definir"). */
+/**
+ * The in-use date as text: the confirmed or planned date, else the sheet's own words ("23 e 24/11/2026"). A sheet
+ * placeholder ("A definir…") never hides a date.
+ */
 export function inUseText(d: Deliverable): string {
-  if (d.in_use_start && (d.in_use_confirmed || !d.in_use_text)) {
+  if (d.in_use_start && (d.in_use_confirmed || !d.in_use_text || /^a definir\b/i.test(d.in_use_text))) {
     return d.in_use_end && d.in_use_end !== d.in_use_start ? `${fmtDate(d.in_use_start)} a ${fmtDate(d.in_use_end, true)}` : fmtDate(d.in_use_start, true)
   }
   return d.in_use_text ?? 'A definir'

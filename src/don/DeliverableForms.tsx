@@ -117,6 +117,11 @@ export function DeliverableForm({ d, onDone }: { d: Deliverable; onDone: () => v
       built_date: built || null, in_use_start: start || null, in_use_end: endNext || (start || null),
     }
     const [change, before] = diff(row, d)
+    // New in-use dates replace the sheet's words and Terral's confirmation: Terral then reads the dates themselves.
+    if ('in_use_start' in change || 'in_use_end' in change) {
+      Object.assign(change, { in_use_text: null, in_use_confirmed: false })
+      Object.assign(before, { in_use_text: d.in_use_text, in_use_confirmed: d.in_use_confirmed })
+    }
     setBusy(true)
     try {
       if (Object.keys(change).length) await w.update(d.code, change, before, 'Entrega salva.')
@@ -138,7 +143,8 @@ export function DeliverableForm({ d, onDone }: { d: Deliverable; onDone: () => v
         <Field label="Uso: início" type="date" value={start} onChange={setStart} />
         <GuardedField guard={guard} name="in_use_end" label="Uso: fim" type="date" value={end} onChange={setEnd} />
       </div>
-      {d.in_use_text && <p className="dnote">Texto original da planilha: {d.in_use_text}</p>}
+      {d.in_use_text && <p className="dnote">Texto original da planilha: {d.in_use_text}. Mudar as datas troca este texto pelas datas.</p>}
+      {d.in_use_confirmed && <p className="dnote">A Terral confirmou esta data. Mudar as datas tira a confirmação.</p>}
       <FormActions onCancel={onDone} busy={busy} />
     </form>
   )

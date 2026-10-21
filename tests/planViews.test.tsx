@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Profile } from '../src/domain/types'
+import type { Deliverable, Profile } from '../src/domain/types'
 
 type R = Record<string, unknown>
 type Rows = Record<string, R[]>
@@ -70,6 +70,7 @@ const { default: Entrega } = await import('../src/views/don/Entrega')
 const { default: Calendario } = await import('../src/views/don/Calendario')
 const { default: Riscos } = await import('../src/views/don/Riscos')
 const { default: Historico } = await import('../src/views/don/Historico')
+const { inUseText } = await import('../src/terral/model')
 const { m } = mock
 
 beforeAll(() => {
@@ -235,6 +236,51 @@ describe('Entrega: milestone date', () => {
     type(within(sheet()).getByLabelText('Uso: início'), '2026-12-17')
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Salvar' }))
     await waitFor(() => expect(writesOf('deliverable')[0]).toMatchObject({ values: { in_use_start: '2026-12-17', in_use_end: '2026-12-17' } }))
+  })
+})
+
+describe('Entrega: in-use dates vs the sheet text', () => {
+  const edit = async () => {
+    detail()
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar' }))
+  }
+  const save = () => fireEvent.click(within(sheet()).getByRole('button', { name: 'Salvar' }))
+
+  it('changing the dates drops the sheet text and the Terral confirmation, so Terral sees the new date', async () => {
+    Object.assign(m.db.deliverable.find((x) => x.code === '3.1')!, { in_use_text: '18/12/2026', in_use_start: '2026-12-18', in_use_end: '2026-12-18', in_use_confirmed: true })
+    await edit()
+    expect(within(sheet()).getByText(/A Terral confirmou esta data/)).toBeInTheDocument()
+    type(within(sheet()).getByLabelText('Uso: início'), '2026-12-21')
+    save()
+    await waitFor(() => expect(writesOf('deliverable')).toHaveLength(1))
+    expect(writesOf('deliverable')[0].values).toEqual({ in_use_start: '2026-12-21', in_use_end: '2026-12-21', in_use_text: null, in_use_confirmed: false })
+  })
+
+  it('a placeholder "A definir" gives way to the date Don sets', async () => {
+    Object.assign(m.db.deliverable.find((x) => x.code === '3.1')!, { in_use_text: 'A definir', in_use_start: null, in_use_end: null })
+    await edit()
+    type(within(sheet()).getByLabelText('Uso: início'), '2027-01-15')
+    save()
+    await waitFor(() => expect(writesOf('deliverable')).toHaveLength(1))
+    expect(writesOf('deliverable')[0].values).toMatchObject({ in_use_start: '2027-01-15', in_use_text: null })
+    const row = () => m.db.deliverable.find((x) => x.code === '3.1') as unknown as Deliverable
+    await waitFor(() => expect(inUseText(row())).toBe('15/01/2027')) // what Terral reads once the server has it
+  })
+
+  it('saving other fields leaves the sheet text and the confirmation alone', async () => {
+    Object.assign(m.db.deliverable.find((x) => x.code === '3.1')!, { in_use_text: '18/12/2026', in_use_confirmed: true })
+    await edit()
+    type(within(sheet()).getByLabelText(/^Nome/), 'Segmentação de clientes')
+    save()
+    await waitFor(() => expect(writesOf('deliverable')).toHaveLength(1))
+    expect(writesOf('deliverable')[0].values).toEqual({ name: 'Segmentação de clientes' })
+  })
+
+  it('Terral reads a date over a leftover "A definir" (rows edited before the fix)', () => {
+    const d = dlv('3.7', 'X', { in_use_text: 'A definir — depende do parecer jurídico', in_use_start: '2027-02-01', in_use_end: '2027-02-01' }) as unknown as Deliverable
+    expect(inUseText(d)).toBe('01/02/2027')
+    expect(inUseText({ ...d, in_use_text: '23 e 24/11/2026' })).toBe('23 e 24/11/2026') // real sheet words still win
+    expect(inUseText({ ...d, in_use_start: null, in_use_end: null })).toBe('A definir — depende do parecer jurídico')
   })
 })
 
