@@ -39,7 +39,7 @@ export function fmtDate(d: ISODate, withYear = false): string {
 }
 
 export function fmtHours(h: number): string {
-  return `${String(h).replace('.', ',')} h`
+  return `${String(Math.round(h * 100) / 100).replace('.', ',')} h`
 }
 
 export function addDays(d: ISODate, n: number): ISODate {

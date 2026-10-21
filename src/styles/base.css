@@ -11,13 +11,13 @@ h1 { font-size: 34px; line-height: 1.08; letter-spacing: -0.025em; font-weight: 
 h2 { font-size: 19px; letter-spacing: -0.015em; font-weight: 700; margin: 0; }
 h3 { font-size: 24px; line-height: 1.15; letter-spacing: -0.02em; font-weight: 700; margin: 0; }
 .eyebrow { font-size: 13px; font-weight: 600; color: var(--don-ink); letter-spacing: 0.01em; }
-.sub { font-size: 15px; color: var(--mute); }
-.caption { font-size: 12px; color: var(--mute); }
-.overline { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--mute); }
+.sub { font-size: 15px; color: var(--ink2); }
+.caption { font-size: 12px; color: var(--ink2); }
+.overline { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink2); }
 .num { font-variant-numeric: tabular-nums; }
 
 :focus-visible { outline: 2px solid var(--don-ink); outline-offset: 2px; }
-button, a, [role="button"] { min-height: 44px; min-width: 44px; }
+button, [role="button"], input, select, textarea { min-height: 44px; min-width: 44px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

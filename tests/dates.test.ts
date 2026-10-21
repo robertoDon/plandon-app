@@ -21,6 +21,7 @@ describe('dates', () => {
     expect(parseHours('2')).toBe(2)
     expect(fmtHours(3.5)).toBe('3,5 h')
     expect(fmtHours(3)).toBe('3 h')
+    expect(fmtHours(0.1 + 0.2)).toBe('0,3 h')
   })
   it('fmt and math', () => {
     expect(fmtDate('2026-10-26')).toBe('26/10')
