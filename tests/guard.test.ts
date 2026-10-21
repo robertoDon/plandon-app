@@ -31,6 +31,14 @@ describe('guard + overrides', () => {
     expect(guardHits(e)).toEqual([])
   })
 
+  it('flags a [COMPLETAR] deliverable in_use_text until overridden', () => {
+    const d = base()
+    d.deliverables.push({ code: '3.7', name: 'n', in_use_text: '[COMPLETAR]' } as Data['deliverables'][number])
+    expect(guardHits(d).filter((h) => h.table === 'deliverable')).toEqual([{ table: 'deliverable', key: '3.7', field: 'in_use_text', words: ['[COMPLETAR]'] }])
+    applyOverrides(d, [{ table: 'deliverable', key: '3.7', field: 'in_use_text', value: 'A definir' }])
+    expect(guardHits(d).filter((h) => h.table === 'deliverable')).toEqual([])
+  })
+
   it('rejects stale or malformed overrides', () => {
     expect(() => applyOverrides(base(), [{ table: 'open_item', key: 'P-99', field: 'text', value: 'x' }])).toThrow(/no row/)
     expect(() => applyOverrides(base(), [{ table: 'open_item', key: 'P-01', field: 'owner_raw', value: 'x' }])).toThrow(/bad override/)

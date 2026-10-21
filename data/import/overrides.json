@@ -19,5 +19,9 @@
   { "table": "goal", "key": "acbc2424-6d75-541d-9496-9bc2d7e034ef", "field": "baseline", "value": "Não medido" },
   { "table": "goal", "key": "aa729173-e5d7-513f-99fb-7c0da35e7fd3", "field": "baseline", "value": "A medir — trava a decisão de papel, cota e preço de transferência" },
   { "table": "goal", "key": "c663e6eb-fbc6-5a53-9a5d-53b65b552b1d", "field": "metric", "value": "A definir" },
-  { "table": "goal", "key": "c663e6eb-fbc6-5a53-9a5d-53b65b552b1d", "field": "baseline", "value": "A medir — a camada de medição do varejo não existe" }
+  { "table": "goal", "key": "c663e6eb-fbc6-5a53-9a5d-53b65b552b1d", "field": "baseline", "value": "A medir — a camada de medição do varejo não existe" },
+  { "table": "deliverable", "key": "3.7", "field": "in_use_text", "value": "A definir" },
+  { "table": "deliverable", "key": "I5", "field": "in_use_text", "value": "A definir" },
+  { "table": "deliverable", "key": "I3", "field": "in_use_text", "value": "A definir — depende do parecer jurídico" },
+  { "table": "deliverable", "key": "3.13", "field": "in_use_text", "value": "A definir" }
 ]

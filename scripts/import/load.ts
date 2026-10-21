@@ -58,34 +58,41 @@ if (reset) {
     must(await db.from(t).delete().not(pk(t), 'is', null), `reset ${t}`)
   }
   must(await db.from('history').delete().gt('id', 0), 'reset history')
-  console.log('reset: domain tables and history cleared')
+  console.log('reset: domain tables (incl. comments, evidence, manual_risk) and history cleared')
 } else {
   for (const k of ORDER) if ((await count(TABLE_OF[k])) > 0) die(`${TABLE_OF[k]} is not empty. Use --reset to reload.`)
 }
 
+const loadStart = new Date().toISOString()
 // --- 2. insert ---
 for (const k of ORDER) {
   const rows = (plan as Record<string, object[]>)[k]
   for (let i = 0; i < rows.length; i += 500) must(await db.from(TABLE_OF[k]).insert(rows.slice(i, i + 500)), `insert ${TABLE_OF[k]}`)
 }
 // The load itself is not user history (service-role writes have no user).
-must(await db.from('history').delete().is('user_id', null), 'clear import history')
+must(await db.from('history').delete().is('user_id', null).gte('at', loadStart), 'clear import history')
 
 // --- 3. admin user ---
 const { ADMIN_EMAIL: email, ADMIN_PASSWORD: password } = process.env
 let adminOk = false
+let adminId = ''
 if (!email || !password) console.warn('WARNING: ADMIN_EMAIL / ADMIN_PASSWORD missing in .env.local: admin user not created.')
 else {
   const lu = await db.auth.admin.listUsers({ perPage: 1000 })
   if (lu.error) die(`list users: ${lu.error.message}`)
   const list = lu.data.users
   const found = list.find((u) => u.email?.toLowerCase() === email.toLowerCase())
-  const res = found
-    ? await db.auth.admin.updateUserById(found.id, { password, email_confirm: true })
-    : await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: 'Beto' } })
-  if (res.error || !res.data.user) die(`admin user: ${res.error?.message}`)
-  const id = res.data.user!.id
-  must(await db.from('profiles').update({ role: 'don', status: 'approved', person_id: 'beto', must_change_password: false }).eq('id', id), 'admin profile')
+  let id = found?.id
+  const fields: Record<string, unknown> = { role: 'don', status: 'approved', person_id: 'beto' }
+  if (!id) {
+    // New user only: an existing account keeps its password.
+    const res = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: 'Beto' } })
+    if (res.error || !res.data.user) die(`admin user: ${res.error?.message}`)
+    id = res.data.user!.id
+    fields.must_change_password = false
+  }
+  adminId = id
+  must(await db.from('profiles').update(fields).eq('id', id), 'admin profile')
   adminOk = true
 }
 
@@ -111,8 +118,9 @@ check('to_schedule hours', toSched.toFixed(2), 104, Math.abs(toSched - 104) <= 0
 const open = must(await db.from('open_item').select('code,visible_to_terral'), 'read open items') as { code: string; visible_to_terral: boolean }[]
 check('open items P / X', `${open.filter((o) => o.code.startsWith('P-')).length} / ${open.filter((o) => o.code.startsWith('X-')).length}`, '26 / 6', open.filter((o) => o.code.startsWith('P-')).length === 26 && open.filter((o) => o.code.startsWith('X-')).length === 6)
 if (adminOk) {
-  const p = must(await db.from('profiles').select('role,status,person_id').limit(5), 'read profiles') as { role: string; status: string; person_id: string }[]
-  check('admin profile', p.some((x) => x.role === 'don' && x.status === 'approved' && x.person_id === 'beto') ? 'don/approved/beto' : 'missing', 'don/approved/beto', p.some((x) => x.role === 'don' && x.status === 'approved' && x.person_id === 'beto'))
+  const p = must(await db.from('profiles').select('role,status,person_id').eq('id', adminId).single(), 'read admin profile') as { role: string; status: string; person_id: string }
+  const good = p.role === 'don' && p.status === 'approved' && p.person_id === 'beto'
+  check('admin profile', good ? 'don/approved/beto' : 'wrong', 'don/approved/beto', good)
 }
 
 console.log('\ncheck'.padEnd(26) + 'db'.padEnd(18) + 'expected'.padEnd(18) + 'result')

@@ -42,7 +42,7 @@ export function applyOverrides(d: Data, overrides: Override[]): void {
   }
 }
 
-/** Banned words, Don hour amounts, and (goals) unfinished [COMPLETAR] placeholders in Terral-visible text. */
+/** Banned words, Don hour amounts, and (goals, deliverables) unfinished [COMPLETAR] placeholders in Terral-visible text. */
 export function guardHits(d: Data): Hit[] {
   const hits: Hit[] = []
   for (const [table, { rows, key }] of Object.entries(tableRows(d)))
@@ -52,7 +52,7 @@ export function guardHits(d: Data): Hit[] {
         const v = r[field]
         if (typeof v !== 'string') continue
         const words = findForbidden(v)
-        if (table === 'goal' && /\[COMPLETAR\]/i.test(v)) words.push('[COMPLETAR]')
+        if ((table === 'goal' || table === 'deliverable') && /\[COMPLETAR\]/i.test(v)) words.push('[COMPLETAR]')
         if (words.length) hits.push({ table, key: String(r[key]), field, words })
       }
     }
