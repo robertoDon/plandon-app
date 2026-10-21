@@ -23,33 +23,7 @@ export function Decisions() {
           <Card>
             {d.decisions.length ? (
               <ul className="t-list" aria-label="Decisões">
-                {[...d.decisions].sort(byCode).map((x) => {
-                  const late = x.status === 'pending' && !!x.date && x.date < t
-                  return (
-                    <li key={x.code} className="t-dec">
-                      <span className="t-code">{x.code}</span>
-                      <div className="t-li-text">
-                        <div className="t">{x.title}</div>
-                        <div className="d">{x.date ? `Reunião de ${fmtDate(x.date, true)}` : 'Data a definir'}</div>
-                        {x.status === 'decided' && (
-                          <div className="t-outcome">
-                            <p>{x.outcome}</p>
-                            {x.decided_by && <span>Decidido por {x.decided_by}</span>}
-                          </div>
-                        )}
-                      </div>
-                      <div className="t-li-side">
-                        {x.status === 'decided' ? <Pill tone="ok">Decidida em {x.decided_at ? fmtDate(x.decided_at) : '—'}</Pill> : (
-                          <>
-                            <Pill tone={late ? 'bad' : 'mute'}>{late ? 'Atrasada' : 'Pendente'}</Pill>
-                            <button type="button" className="dbtn small" disabled={preview} title={preview ? PREVIEW_HINT : undefined}
-                              aria-label={`Registrar decisão ${x.code}`} onClick={() => editor.show(x)}>Registrar decisão</button>
-                          </>
-                        )}
-                      </div>
-                    </li>
-                  )
-                })}
+                {[...d.decisions].sort(byCode).map((x) => <DecisionRow key={x.code} x={x} today={t} preview={preview} onRegister={editor.show} />)}
               </ul>
             ) : <Empty title="Nenhuma decisão no plano." hint="As decisões da diretoria aparecem aqui." />}
           </Card>
@@ -59,5 +33,34 @@ export function Decisions() {
         </>
       )}
     </TerralPage>
+  )
+}
+
+/** One decision: code, title, meeting date, outcome once decided; "Registrar decisão" while pending (off in the preview). */
+export function DecisionRow({ x, today, preview, onRegister }: { x: Decision; today: string; preview: boolean; onRegister: (x: Decision) => void }) {
+  const late = x.status === 'pending' && !!x.date && x.date < today
+  return (
+    <li className="t-dec">
+      <span className="t-code">{x.code}</span>
+      <div className="t-li-text">
+        <div className="t">{x.title}</div>
+        <div className="d">{x.date ? `Reunião de ${fmtDate(x.date, true)}` : 'Data a definir'}</div>
+        {x.status === 'decided' && (
+          <div className="t-outcome">
+            <p>{x.outcome}</p>
+            {x.decided_by && <span>Decidido por {x.decided_by}</span>}
+          </div>
+        )}
+      </div>
+      <div className="t-li-side">
+        {x.status === 'decided' ? <Pill tone="ok">Decidida em {x.decided_at ? fmtDate(x.decided_at) : '—'}</Pill> : (
+          <>
+            <Pill tone={late ? 'bad' : 'mute'}>{late ? 'Atrasada' : 'Pendente'}</Pill>
+            <button type="button" className="dbtn small" disabled={preview} title={preview ? PREVIEW_HINT : undefined}
+              aria-label={`Registrar decisão ${x.code}`} onClick={() => onRegister(x)}>Registrar decisão</button>
+          </>
+        )}
+      </div>
+    </li>
   )
 }

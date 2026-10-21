@@ -109,7 +109,7 @@ function titleOf(m: Milestone, base: string): ReactNode {
   return m.title
 }
 
-function sideOf(m: Milestone, today: string): ReactNode {
+export function sideOf(m: Milestone, today: string): ReactNode {
   const late = m.date < today && !m.done
   if (m.kind === 'use') return m.done ? <Pill tone="ok">Em uso</Pill> : late ? <Pill tone="bad">Atrasada</Pill> : m.confirmed ? <Pill tone="ok">data confirmada</Pill> : <Tag>Uso previsto</Tag>
   if (m.kind === 'decision') return m.done ? <Pill tone="ok">Decidida</Pill> : late ? <Pill tone="bad">Atrasada</Pill> : <Tag you>{m.refs.length > 1 ? 'Suas decisões' : 'Sua decisão'}</Tag>

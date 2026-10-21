@@ -339,10 +339,11 @@ describe('data contract', () => {
     const p = join(dir, f)
     return statSync(p).isDirectory() ? files(p) : /\.tsx?$/.test(f) ? [p] : []
   })
-  const terralFiles = [...files('src/terral'), ...files('src/views/terral'), 'src/views/don/VisaoTerral.tsx']
+  // meeting mode too: a Don session there must show only what Terral sees
+  const terralFiles = [...files('src/terral'), ...files('src/views/terral'), 'src/views/don/VisaoTerral.tsx', ...files('src/meeting'), 'src/views/Reuniao.tsx']
 
   it('Terral components read only useTerralData: no usePlanData, no Don-only tables or fields', () => {
-    expect(terralFiles.length).toBeGreaterThanOrEqual(13)
+    expect(terralFiles.length).toBeGreaterThanOrEqual(15)
     for (const f of terralFiles) {
       const src = readFileSync(f, 'utf8')
       expect(src, f).not.toMatch(/usePlanData|DonData|loadPlan/)

@@ -1,5 +1,5 @@
 import { diffDays, fmtDate, type ISODate } from '../domain/dates'
-import type { Health, Risk } from '../domain/risk'
+import { evaluate, type Health, type Risk } from '../domain/risk'
 import type { Deliverable, OpenItem, ToSchedule } from '../domain/types'
 import type { TerralData } from '../domain/terralView'
 import type { Tone } from '../ui'
@@ -225,3 +225,22 @@ export function terralReasons(
 export const ISO_RE = /^\d{4}-\d{2}-\d{2}$/
 /** A real calendar date in YYYY-MM-DD (rejects 2026-02-31). */
 export const isIsoDate = (s: string) => ISO_RE.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s
+
+/** The health card's numbers (Visão geral and meeting mode): engine result, reasons, ring and the four KPIs. */
+export function healthOf(d: TerralData, today: ISODate) {
+  const result = evaluate(d, today)
+  return {
+    result,
+    status: HEALTH[result.project.status],
+    reasons: terralReasons(result, d, today),
+    inUse: d.deliverables.filter((x) => x.in_use_at).length,
+    total: d.deliverables.length,
+    decided: d.decisions.filter((x) => x.status === 'decided').length,
+    decisions: d.decisions.length,
+    openItems: d.open_items.filter((o) => o.kind === 'pendencia' && o.status === 'open').length,
+    nextKey: milestones(d).find((m) => m.date >= today && !m.done && m.kind !== 'ritual'),
+    // pendências whose delay holds a deliverable due within 14 days (the engine's "high"): the only red ones
+    urgent: new Set(result.risks.filter((r) => r.rule === 'terral_dependency_overdue' && r.severity === 'high').map((r) => r.ref)),
+  }
+}
+export type HealthSummary = ReturnType<typeof healthOf>

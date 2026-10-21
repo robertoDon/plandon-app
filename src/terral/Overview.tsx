@@ -2,16 +2,39 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useSession } from '../auth/useSession'
 import { diffDays, fmtDate } from '../domain/dates'
-import { evaluate } from '../domain/risk'
 import type { TerralData } from '../domain/terralView'
 import { Card, Empty, Pill, Ring, Segmented } from '../ui'
 import { useToday } from '../shared/useToday'
 import { useConfirmDate } from './actions'
 import { Journey } from './Milestones'
-import { dueTone, greeting, HEALTH, terralReasons, milestones, projectSpan, spHour, terralTodos, weekNo, type TerralTodo } from './model'
+import { dueTone, greeting, healthOf, milestones, projectSpan, spHour, terralTodos, weekNo, type HealthSummary, type TerralTodo } from './model'
 import { PREVIEW_HINT, Row, Tag, TerralPage, useTerralCtx } from './Page'
 
 const TODOS_SHOWN = 6
+
+/** Ring, status, headline, the "por quê" and four KPIs. Meeting mode shows it enlarged (`className`, `ring`). */
+export function HealthCard({ h, className, ring }: { h: HealthSummary; className?: string; ring?: number }) {
+  return (
+    <Card className={className ? `t-health ${className}` : 't-health'}>
+      <Ring value={h.inUse} total={h.total} label="entregas" size={ring} />
+      <div className="t-health-head">
+        <Pill tone={h.status.tone}>{h.status.label}</Pill>
+        <h2 className="t-health-title">{h.status.head}</h2>
+      </div>
+      {h.reasons.length ? (
+        <ul className="t-reasons" aria-label="Por quê">
+          {h.reasons.map((r) => <li key={r}>{r}</li>)}
+        </ul>
+      ) : <p className="t-reasons t-reasons-none">Nenhum ponto pede atenção agora.</p>}
+      <dl className="t-kpis">
+        <div><dt>entregas em uso</dt><dd className="num">{h.inUse}</dd></div>
+        <div><dt>próximo marco</dt><dd className="num" title={h.nextKey?.title}>{h.nextKey ? fmtDate(h.nextKey.date) : '—'}</dd></div>
+        <div><dt>decisões tomadas</dt><dd className="num">{h.decided}/{h.decisions}</dd></div>
+        <div><dt>pendências em aberto</dt><dd className="num">{h.openItems}</dd></div>
+      </dl>
+    </Card>
+  )
+}
 
 /** Terral home: greeting, health card, the journey, the next milestones and what depends on Terral. */
 export function Overview() {
@@ -54,42 +77,18 @@ function Body({ d, today }: { d: TerralData; today: string }) {
   const confirm = useConfirmDate()
   const [all, setAll] = useState(false)
   const [tab, setTab] = useState<'open_item' | 'to_schedule'>('open_item')
-  const result = useMemo(() => evaluate(d, today), [d, today])
-  const inUse = d.deliverables.filter((x) => x.in_use_at).length
-  const decided = d.decisions.filter((x) => x.status === 'decided').length
-  const openItems = d.open_items.filter((o) => o.kind === 'pendencia' && o.status === 'open').length
+  const health = useMemo(() => healthOf(d, today), [d, today])
   const ms = useMemo(() => milestones(d), [d])
   const next = ms.filter((m) => m.date >= today && !m.done)
-  const nextKey = next.find((m) => m.kind !== 'ritual')
   const every = useMemo(() => terralTodos(d), [d])
   const count = (k: TerralTodo['kind']) => every.filter((x) => x.kind === k && !(x.kind === 'to_schedule' && x.item.confirmed_date)).length
   const todos = every.filter((x) => x.kind === tab)
   const shown = all ? todos : todos.slice(0, TODOS_SHOWN)
-  const h = HEALTH[result.project.status]
-  const reasons = useMemo(() => terralReasons(result, d, today), [result, d, today])
-  // pendências whose delay holds a deliverable due within 14 days (the engine's "high"): the only red ones
-  const urgent = useMemo(() => new Set(result.risks.filter((r) => r.rule === 'terral_dependency_overdue' && r.severity === 'high').map((r) => r.ref)), [result])
+  const { urgent } = health
 
   return (
     <>
-      <Card className="t-health">
-        <Ring value={inUse} total={d.deliverables.length} label="entregas" />
-        <div className="t-health-head">
-          <Pill tone={h.tone}>{h.label}</Pill>
-          <h2 className="t-health-title">{h.head}</h2>
-        </div>
-        {reasons.length ? (
-          <ul className="t-reasons" aria-label="Por quê">
-            {reasons.map((r) => <li key={r}>{r}</li>)}
-          </ul>
-        ) : <p className="t-reasons t-reasons-none">Nenhum ponto pede atenção agora.</p>}
-        <dl className="t-kpis">
-          <div><dt>entregas em uso</dt><dd className="num">{inUse}</dd></div>
-          <div><dt>próximo marco</dt><dd className="num" title={nextKey?.title}>{nextKey ? fmtDate(nextKey.date) : '—'}</dd></div>
-          <div><dt>decisões tomadas</dt><dd className="num">{decided}/{d.decisions.length}</dd></div>
-          <div><dt>pendências em aberto</dt><dd className="num">{openItems}</dd></div>
-        </dl>
-      </Card>
+      <HealthCard h={health} />
 
       <Card title="A jornada" action={<Link to={`${base}/entregas`}>Ver todas as entregas</Link>}>
         <Journey d={d} today={today} />
@@ -131,7 +130,7 @@ function Body({ d, today }: { d: TerralData; today: string }) {
   )
 }
 
-function TodoRow({ x, today, urgent, preview, onConfirm }: { x: TerralTodo; today: string; urgent: Set<string | undefined>; preview: boolean; onConfirm: ReturnType<typeof useConfirmDate>['ask'] }) {
+export function TodoRow({ x, today, urgent, preview, onConfirm }: { x: TerralTodo; today: string; urgent: Set<string | undefined>; preview: boolean; onConfirm: ReturnType<typeof useConfirmDate>['ask'] }) {
   if (x.kind === 'open_item') {
     const o = x.item
     const due = dueTone(o.due, today, urgent.has(o.code))
