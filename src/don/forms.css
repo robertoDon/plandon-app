@@ -84,6 +84,9 @@
   .drow-side { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; }
 }
 
+.drow-btn.goal { grid-template-columns: minmax(0, 1fr) auto; }
+@media (max-width: 600px) { .drow-btn.goal { grid-template-columns: minmax(0, 1fr); } .drow-btn.goal .drow-side { grid-column: 1; } }
+
 /* Team ------------------------------------------------------------------------------------ */
 .dteam { display: grid; gap: 22px; }
 @media (min-width: 900px) { .dteam { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); } }

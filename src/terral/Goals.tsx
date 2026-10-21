@@ -3,7 +3,7 @@ import { Card, Empty, Pill, type Tone } from '../ui'
 import { TerralPage } from './Page'
 
 /** State of a goal in words (from the Árvore de Metas); the color only repeats it. */
-function stateTone(state: string): Tone {
+export function stateTone(state: string): Tone {
   const s = state.toLowerCase()
   if (s.includes('ainda não')) return 'mute'
   if (s.includes('sem linha')) return 'warn'

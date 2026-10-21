@@ -29,6 +29,8 @@ export const ROUTES: AppRoute[] = [
   { path: '/don/calendario', area: 'don', view: 'don/Calendario', title: 'Calendário', nav: { icon: 'calendar', group: 'Plano' } },
   { path: '/don/equipe', area: 'don', view: 'don/Equipe', title: 'Equipe e carga', nav: { icon: 'team', group: 'Plano' } },
   { path: '/don/decisoes', area: 'don', view: 'don/Decisoes', title: 'Decisões', nav: { icon: 'decision', group: 'Plano' } },
+  { path: '/don/agendar', area: 'don', view: 'don/Agendar', title: 'A agendar', nav: { icon: 'schedule', group: 'Plano' } },
+  { path: '/don/metas', area: 'don', view: 'don/Metas', title: 'Metas', nav: { icon: 'goal', group: 'Plano' } },
   { path: '/don/terral/*', area: 'don', view: 'don/VisaoTerral', title: 'Visão da Terral', nav: { icon: 'eye', group: 'Plano' } },
   { path: '/don/historico', area: 'don', view: 'don/Historico', title: 'Histórico', nav: { icon: 'history', group: 'Administração' } },
   { path: '/don/acessos', area: 'don', view: 'don/Acessos', title: 'Acessos', nav: { icon: 'people', group: 'Administração' } },
