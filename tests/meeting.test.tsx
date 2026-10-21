@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TERRAL_KEYS, toTerralData } from '../src/domain/terralView'
 import { findForbidden } from '../src/domain/textGuard'
@@ -32,7 +32,7 @@ vi.mock('../src/lib/supabase', () => ({ supabase: mock.supabase }))
 vi.mock('../src/auth/useSession', () => ({ useSession: () => ({ profile: mock.m.profile }) }))
 
 const { ToastProvider } = await import('../src/ui')
-const { Meeting } = await import('../src/meeting/Meeting')
+const { Meeting, stepOf, meetingMilestones, weekDecisions } = await import('../src/meeting/Meeting')
 const { m } = mock
 
 const TERRAL: Profile = { id: 'u-t', display_name: 'Júlio Ponte', role: 'terral', status: 'approved', person_id: null, must_change_password: false }
@@ -50,26 +50,32 @@ function plan(): PlanData {
   return p
 }
 
-function seed(role: 'terral' | 'don') {
-  const p = plan()
+function seed(role: 'terral' | 'don', p = plan()) {
   m.profile = role === 'terral' ? TERRAL : DON
   m.db = role === 'terral'
     ? Object.fromEntries(TERRAL_KEYS.map((k) => [TABLE_OF[k], structuredClone(toTerralData(p)[k]) as unknown as Row[]]))
     : { ...Object.fromEntries((Object.keys(TABLE_OF) as (keyof PlanData)[]).map((k) => [TABLE_OF[k], structuredClone(p[k]) as unknown as Row[]])), history: [], profiles: [DON as unknown as Row] }
 }
 
-function mount() {
+/** Where the router is: the meeting writes ?passo= there. */
+function Where() {
+  const l = useLocation()
+  return <output data-testid="where">{l.pathname + l.search}</output>
+}
+
+function mount(path = '/reuniao') {
   window.history.replaceState({}, '', `/?today=${TODAY}`)
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/reuniao']}>
+      <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
           <Routes>
             <Route path="/reuniao" element={<Meeting />} />
             <Route path="/t" element={<p>HOME-T</p>} />
             <Route path="/don/hoje" element={<p>HOME-DON</p>} />
           </Routes>
+          <Where />
         </ToastProvider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -79,7 +85,8 @@ function mount() {
 /** The step the dots mark as current. */
 const step = () => document.querySelector('[aria-current="step"]')?.getAttribute('aria-label')
 const key = (k: string, target: Element | Window = window) => fireEvent.keyDown(target, { key: k })
-const ready = () => screen.findByRole('img', { name: /de 19 entregas/ })
+/** Data loaded: a step is on screen. */
+const ready = () => waitFor(() => expect(document.querySelector('.m-step')).not.toBeNull())
 
 beforeAll(() => {
   const p = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void }
@@ -138,7 +145,7 @@ describe('navigation', () => {
     await ready()
     key('ArrowRight')
     key('ArrowRight')
-    fireEvent.click(await screen.findByRole('button', { name: 'Registrar decisão D07' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar decisão D02' }))
     const field = await screen.findByLabelText(/O que foi decidido/)
     field.focus()
     for (const k of ['ArrowRight', ' ', 'PageDown', 'ArrowLeft', 'Escape']) expect(key(k, field)).toBe(true)
@@ -178,7 +185,7 @@ describe('data', () => {
     await ready()
     key('ArrowRight')
     key('ArrowRight')
-    const b = await screen.findByRole('button', { name: 'Registrar decisão D07' })
+    const b = await screen.findByRole('button', { name: 'Registrar decisão D02' })
     expect(b).toBeDisabled()
     expect(b).toHaveAttribute('title', expect.stringMatching(/Só a Terral/))
   })
@@ -190,12 +197,105 @@ describe('data', () => {
     key('ArrowRight')
     await screen.findByRole('heading', { level: 1, name: 'Decisões da semana' })
     await waitFor(() => expect(document.querySelectorAll('.m-step')).toHaveLength(1)) // the outgoing slide has left
-    // D02–D06 (06/11) and D07 (13/11) are in the window; D01 (27/10) and D08 (27/11) are not
-    expect(screen.queryByText(/D01|D08/)).toBeNull()
+    // "Em atraso": D01 (27/10, open, before the week); then D02–D06 (06/11) and D07 (13/11); D08 (27/11) is out
+    expect(screen.getByRole('list', { name: 'Decisões em atraso' })).toHaveTextContent('D01')
+    expect(screen.queryByText(/D08/)).toBeNull()
+    expect(screen.queryByText('D07')).toBeNull() // 7 decisions, 6 shown
+    fireEvent.click(screen.getByRole('button', { name: '+1 decisões' }))
     expect(screen.getByText('D07')).toBeInTheDocument()
     key('ArrowRight')
     await screen.findByRole('heading', { level: 1, name: 'Pendências' })
     expect(screen.getAllByRole('button', { name: /^Confirmar data:/ }).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/^\+\d+$/).length).toBeGreaterThan(0) // the long list is cut with a "+N"
+  })
+})
+
+describe('fix round 1', () => {
+  it('Marcos: day 30 in, day 31 out, past and done out', () => {
+    const p = plan()
+    const set = (code: string, name: string, date: string, done = false) => {
+      const d = p.deliverables.find((x) => x.code === code)!
+      Object.assign(d, { name, in_use_start: date, in_use_end: date, in_use_at: done ? date : null })
+    }
+    set('3.8', 'Dia 30', '2026-12-10')
+    set('3.9', 'Dia 31', '2026-12-11')
+    set('3.10', 'Ontem', '2026-11-09')
+    set('3.11', 'Feita', '2026-11-15', true)
+    const titles = meetingMilestones(toTerralData(p), TODAY).map((m) => m.title)
+    expect(titles).toContain('Dia 30 em uso')
+    expect(titles.join('|')).not.toMatch(/Dia 31|Ontem|Feita/)
+    expect(titles.every((t) => !/Reunião|Comitê|War Room/.test(t))).toBe(true) // no rites
+  })
+
+  it('Decisões: open ones dated before the week or with no date come first, as "Em atraso"', () => {
+    const p = plan()
+    p.decisions.find((x) => x.code === 'D15')!.date = null
+    Object.assign(p.decisions.find((x) => x.code === 'D02')!, { status: 'decided', outcome: 'ok', decided_by: 'Diretoria', decided_at: '2026-11-06' })
+    p.decisions.find((x) => x.code === 'D01')!.status = 'pending'
+    const { late, week } = weekDecisions(toTerralData(p), TODAY)
+    expect(late.map((x) => x.code)).toEqual(['D01', 'D15'])
+    expect(week.map((x) => x.code)).toEqual(['D03', 'D04', 'D05', 'D06', 'D07', 'D02']) // open first, decided last
+  })
+
+  it('"+N" is a real button: Space on it presses it (no step change), it opens the list in place', async () => {
+    mount('/reuniao?passo=4')
+    await ready()
+    const more = await screen.findByRole('button', { name: /^\+17 pendências$/ })
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    more.focus()
+    expect(key(' ', more)).toBe(true) // left to the button
+    expect(step()).toBe('Passo 4 de 4: Pendências')
+    fireEvent.click(more) // what Enter/Space do on a native button
+    expect(screen.getByRole('list', { name: 'Pendências em aberto' }).children).toHaveLength(22)
+    expect(screen.getByRole('button', { name: 'Mostrar menos' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('?passo= picks the step, keeps the other params, and bad values mean step 1', async () => {
+    expect([stepOf('1'), stepOf('4'), stepOf('0'), stepOf('5'), stepOf('2.5'), stepOf('x'), stepOf(null)]).toEqual([0, 3, 0, 0, 0, 0, 0])
+    mount('/reuniao?today=2026-11-10&passo=3')
+    await ready()
+    expect(step()).toBe('Passo 3 de 4: Decisões da semana')
+    key('ArrowRight')
+    expect(screen.getByTestId('where')).toHaveTextContent('/reuniao?today=2026-11-10&passo=4')
+  })
+
+  it('Don: "Confirmar data" off on step 4, with a visible line saying so', async () => {
+    seed('don')
+    mount('/reuniao?passo=4')
+    await ready()
+    expect(await screen.findByText(/Confirmar data fica com a Terral\./)).toBeInTheDocument()
+    const bs = screen.getAllByRole('button', { name: /^Confirmar data:/ })
+    expect(bs.length).toBeGreaterThan(0)
+    for (const b of bs) {
+      expect(b).toBeDisabled()
+      expect(b).toHaveAttribute('title', 'Só a Terral faz isso.')
+    }
+  })
+
+  it('the record sheet is not inside the draggable step, so dragging in it cannot change the step', async () => {
+    mount('/reuniao?passo=3')
+    await ready()
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar decisão D02' }))
+    const field = await screen.findByLabelText(/O que foi decidido/)
+    expect(field.closest('.m-step')).toBeNull()
+    expect(document.querySelector('.m-step dialog')).toBeNull()
+    fireEvent.pointerDown(field, { pointerType: 'mouse', clientX: 400 })
+    fireEvent.pointerMove(field, { pointerType: 'mouse', clientX: 100 })
+    fireEvent.pointerUp(field, { pointerType: 'mouse', clientX: 100 })
+    expect(step()).toBe('Passo 3 de 4: Decisões da semana')
+    expect(screen.getByLabelText(/O que foi decidido/)).toBe(field)
+  })
+
+  it('guards: a key from inside a (closed) dialog, and any key while a dialog is open, are left alone', async () => {
+    mount('/reuniao?passo=3')
+    await ready()
+    const closed = document.querySelector('dialog:not([open])')!
+    const inner = closed.querySelector('h2') ?? closed
+    expect(key('ArrowRight', inner)).toBe(true)
+    expect(step()).toBe('Passo 3 de 4: Decisões da semana')
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar decisão D02' }))
+    await waitFor(() => expect(document.querySelector('dialog[open]')).not.toBeNull())
+    expect(key('ArrowRight', document.body)).toBe(true)
+    expect(step()).toBe('Passo 3 de 4: Decisões da semana')
   })
 })

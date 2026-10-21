@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router'
-import { AnimatePresence, motion, useReducedMotion, type PanInfo } from 'motion/react'
+import { useNavigate, useSearchParams } from 'react-router'
+import { AnimatePresence, motion, useDragControls, useReducedMotion, type PanInfo } from 'motion/react'
 import { useSession } from '../auth/useSession'
 import { addDays, diffDays, fmtDate, type ISODate } from '../domain/dates'
 import type { TerralData } from '../domain/terralView'
@@ -14,7 +14,7 @@ import { Card, Empty, Sheet } from '../ui'
 import { DecisionForm, useConfirmDate } from '../terral/actions'
 import { DecisionRow } from '../terral/Decisions'
 import { sideOf } from '../terral/Milestones'
-import { healthOf, milestones, projectSpan, terralTodos, weekNo } from '../terral/model'
+import { healthOf, milestones, projectSpan, terralTodos, weekNo, type TerralTodo } from '../terral/model'
 import { HealthCard, TodoRow } from '../terral/Overview'
 import { Row } from '../terral/Page'
 import '../don/forms.css'
@@ -29,6 +29,14 @@ const LAST = STEPS.length - 1
 // What fits at 1920×1080 (and any 16:9, the type scales with the viewport); the rest becomes "+N".
 const CAP = { milestones: 6, decisions: 6, todos: 5 }
 const IDLE_MS = 2500
+/** Disabled writes in a Don session: plain, no "prévia" (this is the meeting, not the preview). */
+const DON_HINT = 'Só a Terral faz isso.'
+
+/** ?passo=1..4 → step index; anything else is step 1. */
+export const stepOf = (v: string | null) => {
+  const n = Number(v)
+  return Number.isInteger(n) && n >= 1 && n <= STEPS.length ? n - 1 : 0
+}
 
 const label = (i: number) => `Passo ${i + 1} de ${STEPS.length}: ${STEPS[i]}`
 /** Keys belong to the field or the open sheet while one has focus. */
@@ -55,21 +63,27 @@ export function Meeting() {
   const today = useToday()
   const reduce = useReducedMotion()
   const uid = useId()
-  const [[step, dir], setNav] = useState<[number, number]>([0, 1])
+  // the step lives in the URL (?passo=N, replaced, not pushed): a reload or a shared link keeps it, Back leaves the meeting
+  const [params, setParams] = useSearchParams()
+  const step = stepOf(params.get('passo'))
+  const [dir, setDir] = useState(1)
+  const drag = useDragControls()
+  const editor = useEditor<Decision>()
+  const confirm = useConfirmDate()
+  const preview = profile?.role !== 'terral'
   const [fs, setFs] = useState(() => !!document.fullscreenElement)
   const [idle, setIdle] = useState(false)
   const asked = useRef(false)
   const first = useRef(true)
   const home = HOME[profile?.role ?? 'terral']
 
-  const go = (to: number) => setNav((cur) => {
+  const go = (to: number) => {
     const t = Math.max(0, Math.min(LAST, to))
-    return t === cur[0] ? cur : [t, t > cur[0] ? 1 : -1]
-  })
-  const move = (by: number) => setNav((cur) => {
-    const t = Math.max(0, Math.min(LAST, cur[0] + by))
-    return t === cur[0] ? cur : [t, by]
-  })
+    if (t === step) return
+    setDir(t > step ? 1 : -1)
+    setParams((p) => { const n = new URLSearchParams(p); n.set('passo', String(t + 1)); return n }, { replace: true })
+  }
+  const move = (by: number) => go(step + by)
   // full screen on the first click or key (a user gesture); unsupported or refused: the page just stays windowed
   // (a refused request, e.g. a gesture the browser did not count, is tried again on the next one)
   const firstGesture = () => {
@@ -181,8 +195,10 @@ export function Meeting() {
             <motion.section key={step} className="m-step" role="region" aria-labelledby={`${uid}-h${step}`}
               custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
               transition={reduce ? { duration: 0.2 } : spring}
-              drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.2} onDragEnd={onDragEnd}>
-              <Step i={step} d={q.data} today={today} hid={`${uid}-h${step}`} preview={profile?.role !== 'terral'} />
+              // swipe is for touch and pen only: a mouse selects text and clicks, it never changes the step
+              drag="x" dragListener={false} dragControls={drag} onPointerDown={(e) => { if (e.pointerType !== 'mouse') drag.start(e) }}
+              dragConstraints={{ left: 0, right: 0 }} dragElastic={0.2} onDragEnd={onDragEnd}>
+              <Step i={step} d={q.data} today={today} hid={`${uid}-h${step}`} preview={preview} onRegister={editor.show} onConfirm={confirm.ask} />
             </motion.section>
           </AnimatePresence>
         ) : (
@@ -198,14 +214,34 @@ export function Meeting() {
           </div>
         )}
       </main>
+      {/* sheets outside the sliding step: a drag or a step change never touches an open form */}
+      <Sheet {...editor.sheet('Registrar decisão')}>
+        {editor.item && <DecisionForm key={editor.item.code} decision={editor.item} today={today} onDone={editor.close} />}
+      </Sheet>
+      {confirm.sheet}
     </div>
   )
 }
 
-/** "+N" under a list cut to fit the screen. */
-const More = ({ n, what }: { n: number; what: string }) => (n > 0 ? <p className="m-more"><b>{`+${n}`}</b> {what}</p> : null)
+/** "+N …" under a list cut to fit the screen: a button that opens the rest in place (the step then scrolls). */
+function More({ n, what, open, onToggle }: { n: number; what: string; open: boolean; onToggle: () => void }) {
+  if (n <= 0) return null
+  return (
+    <button type="button" className="m-more" aria-expanded={open} onClick={onToggle}>
+      {open ? 'Mostrar menos' : <><b>{`+${n}`}</b> {what}</>}
+    </button>
+  )
+}
 
-function Step({ i, d, today, hid, preview }: { i: number; d: TerralData; today: ISODate; hid: string; preview: boolean }) {
+/** First `cap` items, or all once opened. Each step remounts on change, so it starts closed again. */
+function useCap<T>(xs: T[], cap: number) {
+  const [open, setOpen] = useState(false)
+  return { total: xs.length, shown: open ? xs : xs.slice(0, cap), more: { n: xs.length - cap, open, onToggle: () => setOpen(!open) } }
+}
+
+type Writes = { preview: boolean; onRegister: (x: Decision) => void; onConfirm: ReturnType<typeof useConfirmDate>['ask'] }
+
+function Step({ i, d, today, hid, ...w }: { i: number; d: TerralData; today: ISODate; hid: string } & Writes) {
   const { start, weeks } = projectSpan(d)
   const head = (sub?: ReactNode) => (
     <header className="m-head">
@@ -216,8 +252,8 @@ function Step({ i, d, today, hid, preview }: { i: number; d: TerralData; today: 
   )
   if (i === 0) return <Health d={d} today={today} head={head} />
   if (i === 1) return <Marcos d={d} today={today} head={head} />
-  if (i === 2) return <Decisoes d={d} today={today} head={head} preview={preview} />
-  return <Pendencias d={d} today={today} head={head} preview={preview} />
+  if (i === 2) return <Decisoes d={d} today={today} head={head} {...w} />
+  return <Pendencias d={d} today={today} head={head} {...w} />
 }
 
 type StepProps = { d: TerralData; today: ISODate; head: (sub?: ReactNode) => ReactNode }
@@ -232,79 +268,105 @@ function Health({ d, today, head }: StepProps) {
   )
 }
 
-function Marcos({ d, today, head }: StepProps) {
+/** In-use dates and board decisions not done yet, from today to day 30 (rites left out: the meeting is one). */
+export const meetingMilestones = (d: TerralData, today: ISODate) => {
   const until = addDays(today, 30)
-  const ms = useMemo(() => milestones(d, { rituals: false }).filter((m) => !m.done && m.date >= today && m.date <= until), [d, today, until])
+  return milestones(d, { rituals: false }).filter((m) => !m.done && m.date >= today && m.date <= until)
+}
+
+function Marcos({ d, today, head }: StepProps) {
+  const ms = useMemo(() => meetingMilestones(d, today), [d, today])
+  const { shown, more } = useCap(ms, CAP.milestones)
   return (
     <>
-      {head(`Próximos 30 dias, até ${fmtDate(until, true)}.`)}
+      {head(`Próximos 30 dias, até ${fmtDate(addDays(today, 30), true)}. Entregas e decisões; os ritos ficam de fora.`)}
       <div className="m-body">
         <Card>
           {ms.length ? (
             <ul className="t-list" aria-label="Marcos dos próximos 30 dias">
-              {ms.slice(0, CAP.milestones).map((m) => <Row key={m.key} date={m.date} title={m.title} detail={m.detail} side={sideOf(m, today)} clamp />)}
+              {shown.map((m) => <Row key={m.key} date={m.date} title={m.title} detail={m.detail} side={sideOf(m, today)} clamp />)}
             </ul>
           ) : <Empty title="Nenhum marco nos próximos 30 dias." hint="O próximo aparece aqui quando estiver a um mês." />}
-          <More n={ms.length - CAP.milestones} what="marcos nesse período" />
+          <More {...more} what="marcos nesse período" />
         </Card>
       </div>
     </>
   )
 }
 
-function Decisoes({ d, today, head, preview }: StepProps & { preview: boolean }) {
-  const editor = useEditor<Decision>()
-  // dated within a week either side of today; open ones first (the room acts on those), then by date and code
-  const list = useMemo(() => d.decisions
-    .filter((x) => x.date && Math.abs(diffDays(x.date, today)) <= 7)
-    .sort((a, b) => Number(a.status === 'decided') - Number(b.status === 'decided') || a.date!.localeCompare(b.date!) || a.code.localeCompare(b.code, 'pt-BR', { numeric: true })),
-  [d, today])
-  const open = list.filter((x) => x.status !== 'decided').length
+const byDateCode = (a: Decision, b: Decision) => (a.date ?? '9999').localeCompare(b.date ?? '9999') || a.code.localeCompare(b.code, 'pt-BR', { numeric: true })
+
+/**
+ * The decisions of the week: "Em atraso" (still open and dated before the week, or with no date) first, then every
+ * decision dated within 7 days either side of today, open ones first.
+ */
+export function weekDecisions(d: TerralData, today: ISODate) {
+  const from = addDays(today, -7)
+  const late = d.decisions.filter((x) => x.status !== 'decided' && (!x.date || x.date < from)).sort(byDateCode)
+  const week = d.decisions.filter((x) => x.date && Math.abs(diffDays(x.date, today)) <= 7)
+    .sort((a, b) => Number(a.status === 'decided') - Number(b.status === 'decided') || byDateCode(a, b))
+  return { late, week }
+}
+
+function Decisoes({ d, today, head, preview, onRegister }: StepProps & Writes) {
+  const { late, week } = useMemo(() => weekDecisions(d, today), [d, today])
+  const all = [...late, ...week]
+  const { shown, more } = useCap(all, CAP.decisions)
+  const lateShown = shown.slice(0, late.length)
+  const weekShown = shown.slice(late.length)
+  const open = week.filter((x) => x.status !== 'decided').length
+  const row = (x: Decision) => <DecisionRow key={x.code} x={x} today={today} preview={preview} hint={DON_HINT} onRegister={onRegister} />
   return (
     <>
-      {head(`De ${fmtDate(addDays(today, -7))} a ${fmtDate(addDays(today, 7))}. ${open === 0 ? 'Nenhuma em aberto.' : open === 1 ? '1 em aberto.' : `${open} em aberto.`}${preview ? ' Registrar fica com a Terral.' : ''}`)}
+      {head(`De ${fmtDate(addDays(today, -7))} a ${fmtDate(addDays(today, 7))}: ${open === 0 ? 'nenhuma em aberto' : open === 1 ? '1 em aberto' : `${open} em aberto`}${late.length ? `, e ${late.length} em atraso` : ''}.${preview ? ' Registrar fica com a Terral.' : ''}`)}
       <div className="m-body">
         <Card>
-          {list.length ? (
-            <ul className="t-list" aria-label="Decisões da semana">
-              {list.slice(0, CAP.decisions).map((x) => <DecisionRow key={x.code} x={x} today={today} preview={preview} onRegister={editor.show} />)}
-            </ul>
+          {all.length ? (
+            <>
+              {lateShown.length > 0 && (
+                <>
+                  <h2 className="m-group">Em atraso</h2>
+                  <ul className="t-list" aria-label="Decisões em atraso">{lateShown.map(row)}</ul>
+                </>
+              )}
+              {weekShown.length > 0 && (
+                <>
+                  {late.length > 0 && <h2 className="m-group">Nesta semana</h2>}
+                  <ul className="t-list" aria-label="Decisões da semana">{weekShown.map(row)}</ul>
+                </>
+              )}
+            </>
           ) : <Empty title="Nenhuma decisão nesta semana." hint="As decisões com data a até 7 dias de hoje aparecem aqui." />}
-          <More n={list.length - CAP.decisions} what="decisões nesta janela" />
+          <More {...more} what="decisões" />
         </Card>
       </div>
-      <Sheet {...editor.sheet('Registrar decisão')}>
-        {editor.item && <DecisionForm key={editor.item.code} decision={editor.item} today={today} onDone={editor.close} />}
-      </Sheet>
     </>
   )
 }
 
-function Pendencias({ d, today, head, preview }: StepProps & { preview: boolean }) {
-  const confirm = useConfirmDate()
+function Pendencias({ d, today, head, preview, onConfirm }: StepProps & Writes) {
   const { urgent } = useMemo(() => healthOf(d, today), [d, today])
   const todos = useMemo(() => terralTodos(d), [d])
-  const items = todos.filter((x) => x.kind === 'open_item')
-  const dates = todos.filter((x) => x.kind === 'to_schedule' && !x.item.confirmed_date)
-  const list = (xs: typeof todos, name: string) => (
+  const items = useCap(todos.filter((x) => x.kind === 'open_item'), CAP.todos)
+  const dates = useCap(todos.filter((x) => x.kind === 'to_schedule' && !x.item.confirmed_date), CAP.todos)
+  const list = (xs: TerralTodo[], name: string) => (
     <ul className="t-list" aria-label={name}>
-      {xs.slice(0, CAP.todos).map((x) => <TodoRow key={x.key} x={x} today={today} urgent={urgent} preview={preview} onConfirm={confirm.ask} />)}
+      {xs.map((x) => <TodoRow key={x.key} x={x} today={today} urgent={urgent} preview={preview} hint={DON_HINT} onConfirm={onConfirm} />)}
     </ul>
   )
   return (
     <>
-      {head('O que depende da Terral.')}
+      {head(`O que depende da Terral.${preview ? ' Confirmar data fica com a Terral.' : ''}`)}
       <div className="m-body m-cols">
-        <Card title={`Pendências em aberto (${items.length})`}>
-          {items.length ? list(items, 'Pendências em aberto') : <Empty title="Nenhuma pendência aberta." />}
-          <More n={items.length - CAP.todos} what="pendências" />
+        <Card title={`Pendências em aberto (${items.total})`}>
+          {items.total ? list(items.shown, 'Pendências em aberto') : <Empty title="Nenhuma pendência aberta." />}
+          <More {...items.more} what="pendências" />
         </Card>
-        <Card title={`Datas a confirmar (${dates.length})`}>
-          {dates.length ? list(dates, 'Datas a confirmar') : <Empty title="Nenhuma data a confirmar." />}
-          <More n={dates.length - CAP.todos} what="datas" />
+        <Card title={`Datas a confirmar (${dates.total})`}>
+          {dates.total ? list(dates.shown, 'Datas a confirmar') : <Empty title="Nenhuma data a confirmar." />}
+          <More {...dates.more} what="datas" />
         </Card>
       </div>
-      {confirm.sheet}
     </>
   )
 }

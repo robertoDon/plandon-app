@@ -37,7 +37,7 @@ export function Decisions() {
 }
 
 /** One decision: code, title, meeting date, outcome once decided; "Registrar decisão" while pending (off in the preview). */
-export function DecisionRow({ x, today, preview, onRegister }: { x: Decision; today: string; preview: boolean; onRegister: (x: Decision) => void }) {
+export function DecisionRow({ x, today, preview, hint = PREVIEW_HINT, onRegister }: { x: Decision; today: string; preview: boolean; hint?: string; onRegister: (x: Decision) => void }) {
   const late = x.status === 'pending' && !!x.date && x.date < today
   return (
     <li className="t-dec">
@@ -56,7 +56,7 @@ export function DecisionRow({ x, today, preview, onRegister }: { x: Decision; to
         {x.status === 'decided' ? <Pill tone="ok">Decidida em {x.decided_at ? fmtDate(x.decided_at) : '—'}</Pill> : (
           <>
             <Pill tone={late ? 'bad' : 'mute'}>{late ? 'Atrasada' : 'Pendente'}</Pill>
-            <button type="button" className="dbtn small" disabled={preview} title={preview ? PREVIEW_HINT : undefined}
+            <button type="button" className="dbtn small" disabled={preview} title={preview ? hint : undefined}
               aria-label={`Registrar decisão ${x.code}`} onClick={() => onRegister(x)}>Registrar decisão</button>
           </>
         )}
