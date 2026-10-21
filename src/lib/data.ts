@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from './supabase'
-import { useToast } from './toast'
+import { useToast } from '../ui/Toast'
 import { useSession } from '../auth/useSession'
 import { TABLE_OF, type HistoryRow, type PlanData, type Profile } from '../domain/types'
 import { TERRAL_KEYS, toTerralData, type TerralData } from '../domain/terralView'
@@ -145,7 +145,7 @@ export function useMutate<T extends Write>(table: string, opts: { optimistic?: (
     },
     onError: (e, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(PLAN, ctx.prev)
-      toast(errorText(e), { tone: 'error' })
+      toast.show(errorText(e), { tone: 'error' })
     },
     onSettled: () => refetchAll(qc),
   })
