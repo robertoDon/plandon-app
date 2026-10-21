@@ -10,7 +10,8 @@ const toMs = (d: ISODate) => Date.parse(`${d}T00:00:00Z`)
 function iso(d: string, m: string, y: string): ISODate | null {
   const s = `${y}-${pad(+m)}-${pad(+d)}`
   const t = new Date(`${s}T00:00:00Z`)
-  return t.toISOString().slice(0, 10) === s ? s : null // rejects 31/02
+  // rejects 31/02 and out-of-range day/month (toISOString throws on Invalid Date)
+  return Number.isNaN(t.getTime()) || t.toISOString().slice(0, 10) !== s ? null : s
 }
 
 export function parseBrDate(s: string): ISODate | null {
@@ -23,7 +24,7 @@ export function parseBrRange(s: string): { start: ISODate | null; end: ISODate |
   if (!dates.length) return { start: null, end: null }
   if (/^\s*antes de/i.test(s)) return { start: null, end: dates[0] }
   // "23 e 24/11/2026": first day shares month/year with the second
-  const pair = /(\d{1,2})\s+e\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s)
+  const pair = /(?<![\d/])(\d{1,2})\s+e\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s)
   if (pair) return { start: iso(pair[1], pair[3], pair[4]), end: iso(pair[2], pair[3], pair[4]) }
   return { start: dates[0], end: dates[dates.length - 1] }
 }

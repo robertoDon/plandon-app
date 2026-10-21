@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { parseBrDate, parseBrRange, parseHours } from '../../src/domain/dates'
-import { DON_NAMES, extractCodes, ownerPublic } from '../../src/domain/textGuard'
+import { DON_NAMES, extractCodes, fold, ownerPublic } from '../../src/domain/textGuard'
 import type {
   Block, Decision, Deliverable, Dependency, Goal, OpenItem, OpenItemInternal, PlanData, Person,
   Ritual, RitualOccurrence, Task, TaskStatus, ToSchedule, ToSchedulePlan, Traceability,
@@ -24,13 +24,22 @@ const clean = (v: unknown): string => {
 const orNull = (s: string): string | null => (s === '' ? null : s)
 const isBlank = (r: string[]) => r.every((c) => clean(c) === '')
 const isTotal = (r: string[]) => r.some((c) => clean(c).toUpperCase() === 'TOTAL')
-const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 /** Deterministic uuid: the import is repeatable and ids stay stable between runs. */
 function uid(ns: string, key: string): string {
   const h = createHash('sha1').update(`${ns}:${key}`).digest('hex')
   const v = ((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16)
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${v}${h.slice(18, 20)}-${h.slice(20, 32)}`
+}
+
+/** Content-keyed id: same key twice gets occurrence 1, 2, ... so a re-import keeps ids while the sheet changes. */
+function keyedUid(ns: string) {
+  const seen = new Map<string, number>()
+  return (key: string): string => {
+    const n = (seen.get(key) ?? 0) + 1
+    seen.set(key, n)
+    return uid(ns, `${key}#${n}`)
+  }
 }
 
 /** Rows of a table: after the header (index 0), up to the first blank row. Notes ("·") and TOTAL rows are skipped. */
@@ -44,7 +53,7 @@ function table(rows: string[][], from = 1): string[][] {
   return out
 }
 
-const personId = (name: string): string | null => {
+const donId = (name: string): string | null => {
   const n = DON_NAMES.find((d) => fold(d) === fold(name))
   return n ? n.toLowerCase() : null
 }
@@ -61,6 +70,12 @@ const TASK_STATUS: Record<string, TaskStatus> = {
 export function parseWorkbook(raw: RawWorkbook): ImportResult {
   const warnings: string[] = []
   const warn = (m: string) => warnings.push(m)
+  // Don person id for an owner cell; Terral-side owners (Diretoria...) are null, anything else non-empty is odd
+  const personId = (name: string, where: string): string | null => {
+    const id = donId(name)
+    if (!id && name !== '' && !/^Diretoria/i.test(name)) warn(`${where}: unknown owner "${name}", person_id null`)
+    return id
+  }
 
   // --- deliverables ---
   const deliverableRows = table(raw.entregaveis)
@@ -90,45 +105,26 @@ export function parseWorkbook(raw: RawWorkbook): ImportResult {
 
   // --- blocks (Plano Diário) ---
   const blocks: Block[] = []
+  const blockUid = keyedUid('block')
   table(raw.plano).forEach((r, i) => {
     const date = parseBrDate(r[0])
     if (!date) return warn(`Plano Diário row ${i + 2}: invalid date "${r[0]}", row skipped`)
+    const person_id = personId(r[8], `Plano Diário row ${i + 2}`)
     blocks.push({
-      id: uid('block', String(i + 1)),
+      id: blockUid(`${date}|${person_id ?? ''}|${r[5]}|${r[7]}`),
       date,
       week: r[2],
       type: r[3],
       front: r[4],
       code: orNull(r[5]),
       description: r[7],
-      person_id: personId(r[8]),
+      person_id,
       hours: parseHours(r[9] ?? ''),
       due: parseBrDate(r[10] ?? ''),
       task_id: null,
       done: false,
       done_at: null,
     })
-  })
-
-  // --- people: Don team members that own blocks ---
-  const people: Person[] = []
-  for (const b of blocks) {
-    if (!b.person_id || people.some((p) => p.id === b.person_id)) continue
-    const name = DON_NAMES.find((d) => d.toLowerCase() === b.person_id)!
-    people.push({ id: b.person_id, name, net_capacity_h: null, daily_cap_h: 8, weekly_cap_h: 40 })
-  }
-  // Painel: "CAPACIDADE DE <NAME>" section holds "Capacidade líquida"
-  const painel = raw.painel.map((r) => r.map(clean))
-  const painelValue = (label: string): number | null => {
-    const row = painel.find((r) => r[0] === label)
-    return row ? parseHours(row[1] ?? '') : null
-  }
-  painel.forEach((r, i) => {
-    const m = /^CAPACIDADE DE (.+)$/i.exec(r[0] ?? '')
-    const p = m && people.find((x) => fold(x.name) === fold(m[1]))
-    if (!p) return
-    const net = painel.slice(i + 1).find((x) => x[0] === 'Capacidade líquida')
-    if (net) p.net_capacity_h = parseHours(net[1])
   })
 
   // --- tasks: one per distinct (code, description) among Prioridades "Tarefa" / "Tarefa com a Terral" rows ---
@@ -156,7 +152,7 @@ export function parseWorkbook(raw: RawWorkbook): ImportResult {
       front: first[3],
       code: first[4],
       description: first[6],
-      person_id: personId(owner),
+      person_id: personId(owner, `Prioridades #${first[0]}`),
       status: status ?? 'not_started',
     }
     tasks.push(t)
@@ -244,8 +240,36 @@ export function parseWorkbook(raw: RawWorkbook): ImportResult {
       window_text: orNull(r[6] ?? ''),
       confirmed_date: null,
     })
-    to_schedule_plan.push({ to_schedule_id: id, person_id: personId(r[4] ?? ''), hours: parseHours(r[5] ?? ''), distributed: false })
+    to_schedule_plan.push({ to_schedule_id: id, person_id: personId(r[4] ?? '', `A Agendar ${r[0]}`), hours: parseHours(r[5] ?? ''), distributed: false })
   }
+
+  // --- people: Don team members that own blocks, tasks or to-schedule items ---
+  const people: Person[] = []
+  for (const id of [...blocks.map((b) => b.person_id), ...tasks.map((t) => t.person_id), ...to_schedule_plan.map((p) => p.person_id)]) {
+    if (!id || people.some((p) => p.id === id)) continue
+    const name = DON_NAMES.find((d) => d.toLowerCase() === id)!
+    people.push({ id, name, net_capacity_h: null, reserved_h: 0, daily_cap_h: 8, weekly_cap_h: 40 })
+  }
+  // Governança "Deslocamento..." row: hours that fill the leader's agenda but are not blocks
+  ritualRows
+    .filter((r) => fold(r[0]).startsWith('deslocamento'))
+    .forEach((r) => {
+      const p = people.find((x) => x.id === donId(r[4] ?? ''))
+      if (p) p.reserved_h += parseHours(r[3] ?? '')
+    })
+  // Painel: "CAPACIDADE DE <NAME>" section holds "Capacidade líquida"
+  const painel = raw.painel.map((r) => r.map(clean))
+  const painelValue = (label: string): number | null => {
+    const row = painel.find((r) => r[0] === label)
+    return row ? parseHours(row[1] ?? '') : null
+  }
+  painel.forEach((r, i) => {
+    const m = /^CAPACIDADE DE (.+)$/i.exec(r[0] ?? '')
+    const p = m && people.find((x) => fold(x.name) === fold(m[1]))
+    if (!p) return
+    const net = painel.slice(i + 1).find((x) => x[0] === 'Capacidade líquida')
+    if (net) p.net_capacity_h = parseHours(net[1])
+  })
 
   // --- open items ---
   const open_items: OpenItem[] = []
@@ -268,14 +292,15 @@ export function parseWorkbook(raw: RawWorkbook): ImportResult {
       due_text: exact ? null : orNull(due),
       effect: orNull(effect),
       status: /^RESOLVIDA/i.test(text) ? 'resolved' : 'open',
-      visible_to_terral: kind === 'pendencia' && /Terral|FP&A|Júlio|Diretoria/i.test(owner),
+      visible_to_terral: kind === 'pendencia' && /terral|fp&a|julio|diretoria/.test(fold(owner)),
     })
     open_items_internal.push({ code, owner_raw: owner })
   }
 
   // --- goals ---
+  const goalUid = keyedUid('goal')
   const goals: Goal[] = table(raw.metas).map((r, i) => ({
-    id: uid('goal', String(i + 1)),
+    id: goalUid(`${r[0]}|${r[1]}|${r[2]}`),
     sort: i + 1,
     level: r[0],
     position: r[1],
@@ -287,10 +312,11 @@ export function parseWorkbook(raw: RawWorkbook): ImportResult {
   }))
 
   // --- traceability ---
-  const traceability: Traceability[] = table(raw.rastreabilidade).map((r, i) => {
+  const traceUid = keyedUid('trace')
+  const traceability: Traceability[] = table(raw.rastreabilidade).map((r) => {
     const lead = (r[4] ?? '').split(' ')[0]
     return {
-      id: uid('trace', String(i + 1)),
+      id: traceUid(`${r[0]}|${r[1]}|${r[2]}`),
       annex_tab: r[0],
       field: r[1],
       col: r[2],

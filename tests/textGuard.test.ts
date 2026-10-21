@@ -33,6 +33,8 @@ describe('ownerPublic', () => {
     expect(ownerPublic('David com Júlio')).toBe('Diretoria Terral com a Don')
     expect(ownerPublic('David')).toBe('Equipe Don')
     expect(ownerPublic('Lucas e Beto')).toBe('Equipe Don')
+    expect(ownerPublic('David com a Terral')).toBe('Equipe Don com a Terral')
+    expect(ownerPublic('David com o desenvolvedor do BI')).toBe('Equipe Don com a Terral')
     expect(ownerPublic('FP&A')).toBe('FP&A')
     expect(ownerPublic('Terral')).toBe('Terral')
   })

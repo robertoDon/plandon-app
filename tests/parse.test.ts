@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { loadRaw, parseWorkbook } from '../scripts/import/parse'
+import { findBanned } from '../src/domain/textGuard'
 
 const sumBy = (blocks: { person_id: string | null; hours: number }[], p: string) =>
   blocks.filter((b) => b.person_id === p).reduce((s, b) => s + b.hours, 0)
@@ -60,6 +61,53 @@ describe('parseWorkbook (real snapshot)', () => {
   it('rituals', () => {
     expect(r.rituals.length).toBeGreaterThanOrEqual(5)
     expect(r.ritual_occurrences.length).toBeGreaterThan(0)
+    const occ = (name: string) => {
+      const id = r.rituals.find((x) => x.name === name)!.id
+      return r.ritual_occurrences.filter((o) => o.ritual_id === id).length
+    }
+    expect(r.rituals.map((x) => occ(x.name))).toEqual([7, 19, 6, 10, 8, 0, 0])
+    expect(occ('Preparação das decisões')).toBe(0)
+    expect(occ('Deslocamento aos blocos presenciais')).toBe(0)
+  })
+
+  it('capacity: reserved travel hours and the 25.8 h slack', () => {
+    const david = r.people.find((p) => p.id === 'david')!
+    expect(david.reserved_h).toBe(32)
+    expect(r.people.filter((p) => p.id !== 'david').map((p) => p.reserved_h)).toEqual([0, 0])
+    const planned = sumBy(r.blocks, 'david') + r.to_schedule_plan.filter((p) => p.person_id === 'david').reduce((s, p) => s + p.hours, 0)
+    expect(david.net_capacity_h! - david.reserved_h - planned).toBeCloseTo(25.8, 1)
+  })
+
+  it('owner_public never carries a Don name', () => {
+    expect(r.open_items.find((o) => o.code === 'P-08')!.owner_public).toBe('Equipe Don com a Terral')
+    expect(r.open_items.find((o) => o.code === 'P-24')!.owner_public).toBe('Equipe Don com a Terral')
+    expect(r.open_items.map((o) => findBanned(o.owner_public))).toEqual(r.open_items.map(() => []))
+  })
+
+  it('visibility ignores accents on Júlio', () => {
+    const raw = loadRaw()
+    raw.pendencias[1][2] = 'David com Julio'
+    expect(parseWorkbook(raw).open_items.find((o) => o.code === 'P-01')!.visible_to_terral).toBe(true)
+  })
+
+  it('warns on an unknown owner instead of silently dropping it', () => {
+    const raw = loadRaw()
+    raw.plano[1][8] = 'Fulano'
+    expect(parseWorkbook(raw).warnings.some((w) => w.includes('unknown owner "Fulano"'))).toBe(true)
+  })
+
+  it('ids are unique and content-keyed: a new row on top keeps every existing id', () => {
+    const ids = r.blocks.map((b) => b.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    const raw = loadRaw()
+    raw.plano.splice(1, 0, ['25/10/2026', 'domingo', 'S00', 'Tarefa', 'Gestão', '3.12', 'Lançamento interno', 'Linha nova', 'Lucas', '1,0', '01/12/2026'])
+    const r2 = parseWorkbook(raw)
+    expect(r2.blocks).toHaveLength(441)
+    const after = new Map(r2.blocks.map((b) => [b.id, b]))
+    for (const b of r.blocks) expect(after.get(b.id)).toMatchObject({ date: b.date, description: b.description, person_id: b.person_id })
+    expect(r2.ritual_occurrences.map((o) => o.id)).toEqual(r.ritual_occurrences.map((o) => o.id))
+    expect(r2.goals.map((g) => g.id)).toEqual(r.goals.map((g) => g.id))
+    expect(new Set(r.goals.map((g) => g.id)).size).toBe(r.goals.length)
   })
 
   it('links blocks to tasks and builds dependencies', () => {

@@ -1,6 +1,6 @@
 export const DON_NAMES = ['David', 'Lucas', 'Beto', 'Roberto']
 
-const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+export const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 const BANNED = [...DON_NAMES, 'margem']
 const HOURS = /\d+(?:[.,]\d+)?\s?h\b/gi
 const CODE = /(?<![\d.])(3\.(?:1[0-4]|[1-9])|I[1-5])(?![\d])/g
@@ -26,7 +26,10 @@ export const findForbidden = (text: string): string[] => unique([...findBanned(t
 /** Terral-safe owner label: Don people never shown by name. */
 export function ownerPublic(raw: string): string {
   if (!findBanned(raw).some((w) => DON_NAMES.includes(w))) return raw
-  return /(?<![a-z])julio(?![a-z])/.test(fold(raw)) ? 'Diretoria Terral com a Don' : 'Equipe Don'
+  const f = fold(raw)
+  if (/(?<![a-z])julio(?![a-z])/.test(f)) return 'Diretoria Terral com a Don'
+  // co-owned with the Terral side (Terral itself or its BI developer): say so, without the Don name
+  return /(?<![a-z])com (?:a |o )?(?:terral|desenvolvedor)/.test(f) ? 'Equipe Don com a Terral' : 'Equipe Don'
 }
 
 export const extractCodes = (text: string): string[] => unique(text.match(CODE) ?? [])

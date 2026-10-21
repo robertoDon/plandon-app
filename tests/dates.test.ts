@@ -7,6 +7,9 @@ describe('dates', () => {
     expect(parseBrDate('—')).toBeNull()
     expect(parseBrDate('')).toBeNull()
     expect(parseBrDate('31/02/2026')).toBeNull()
+    expect(parseBrDate('40/13/2026')).toBeNull()
+    expect(parseBrDate('32/01/2026')).toBeNull()
+    expect(parseBrDate('10/13/2026')).toBeNull()
   })
   it('parseBrRange', () => {
     expect(parseBrRange('23 e 24/11/2026')).toEqual({ start: '2026-11-23', end: '2026-11-24' })
@@ -14,6 +17,12 @@ describe('dates', () => {
     expect(parseBrRange('antes de 18/12/2026')).toEqual({ start: null, end: '2026-12-18' })
     expect(parseBrRange('fora desta etapa')).toEqual({ start: null, end: null })
     expect(parseBrRange('11/12/2026')).toEqual({ start: '2026-12-11', end: '2026-12-11' })
+  })
+  it('parseBrRange never throws and is not fooled by full-date pairs', () => {
+    expect(() => parseBrRange('de 40/13/2026 a 05/03/2027')).not.toThrow()
+    expect(parseBrRange('40/13/2026')).toEqual({ start: null, end: null })
+    expect(parseBrRange('10/11/2026 e 12/11/2026')).toEqual({ start: '2026-11-10', end: '2026-11-12' })
+    expect(parseBrRange('23 e 24/11/2026')).toEqual({ start: '2026-11-23', end: '2026-11-24' })
   })
   it('hours', () => {
     expect(parseHours('3,0')).toBe(3)

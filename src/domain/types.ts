@@ -9,6 +9,7 @@ export interface Person {
   id: string // lowercased first name: david | lucas | beto
   name: string
   net_capacity_h: number | null
+  reserved_h: number // hours that fill the agenda without being blocks (travel to on-site days)
   daily_cap_h: number
   weekly_cap_h: number
 }
