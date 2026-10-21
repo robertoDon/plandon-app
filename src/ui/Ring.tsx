@@ -15,7 +15,7 @@ export function Ring({ value, total, label, size = 108 }: { value: number; total
         <motion.circle cx={c} cy={c} r={r} fill="none" stroke="var(--don)" strokeWidth={stroke} strokeLinecap="round"
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: p, opacity: p > 0 ? 1 : 0 }} // round caps would draw a dot at 0
-          transition={reduce ? { duration: 0 } : { ...spring, duration: 0.6 }} />
+          transition={reduce ? { duration: 0 } : spring} />
       </svg>
       <b aria-hidden="true"><span>{value}/{total}</span>{label}</b>
     </div>

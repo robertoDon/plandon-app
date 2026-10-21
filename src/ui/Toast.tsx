@@ -25,7 +25,9 @@ export function enterToastLayer(el: HTMLElement): () => void {
   layers.push(el)
   notify()
   return () => {
-    layers.splice(layers.indexOf(el), 1)
+    const i = layers.indexOf(el)
+    if (i < 0) return // already left
+    layers.splice(i, 1)
     notify()
   }
 }

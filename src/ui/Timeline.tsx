@@ -7,6 +7,7 @@ export interface TimelineItem { date: ISODate; label: string; tone: Tone; shape?
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 const ROW = 38
 const GAP = 12
+const MONTH_W = 28 // room a month label needs before `to`
 
 /**
  * Horizontal journey from `from` to `to`: month ticks, a "hoje" line, items placed by date. Labels that would
@@ -21,12 +22,14 @@ export function Timeline({ from, to, today, items }: { from: ISODate; to: ISODat
   const after = items.filter((i) => i.date > to).length
 
   const track = useRef<HTMLOListElement>(null)
+  const [width, setWidth] = useState(0)
   const [place, setPlace] = useState<{ row: number; flip: boolean; max?: number }[]>([])
   useLayoutEffect(() => {
     const el = track.current
     if (!el) return
     const measure = () => {
       const w = el.clientWidth
+      setWidth(w)
       const ends: number[] = [] // right edge of the last label in each row
       setPlace([...el.children].map((li, i) => {
         const x = (pos(inside[i].date) / 100) * w
@@ -62,13 +65,15 @@ export function Timeline({ from, to, today, items }: { from: ISODate; to: ISODat
   return (
     <div className="ui-tl">
       <div className="ui-tl-months" aria-hidden="true">
-        {months.map((m) => <span key={m.key} style={{ left: `${m.at}%` }}>{m.label}</span>)}
+        {/* a month that starts just before `to` has no room for its label: skip the label */}
+        {months.filter((m, i) => i === 0 || !width || ((100 - m.at) / 100) * width >= MONTH_W)
+          .map((m) => <span key={m.key} style={{ left: `${m.at}%` }}>{m.label}</span>)}
       </div>
       <div style={{ position: 'relative' }}>
         {showToday && <div className="ui-tl-today" style={{ left: `${pos(today)}%` }} aria-hidden="true"><span>hoje</span></div>}
         <ol ref={track} className="ui-tl-track" aria-label="Linha do tempo" style={{ height: rows * ROW }}>
           {inside.map((it, i) => (
-            <li key={`${it.date}-${it.label}`} className={`ui-tl-item ${it.tone}${place[i]?.flip ? ' flip' : ''}`}
+            <li key={i} className={`ui-tl-item ${it.tone}${place[i]?.flip ? ' flip' : ''}`}
               style={{ left: `${pos(it.date)}%`, top: (place[i]?.row ?? 0) * ROW + 8, maxWidth: place[i]?.max }}>
               <span className={it.shape === 'diamond' ? 'ui-tl-dot diamond' : 'ui-tl-dot'} aria-hidden="true" />
               <span className="ui-tl-label"><span className="ui-tl-text" title={it.label}>{it.label}</span> <small>{fmtDate(it.date)}</small></span>

@@ -31,6 +31,16 @@ export function Sheet({ open, onClose, title, children, onClosed }: { open: bool
     closed: reduce ? { x: 0, y: 0, opacity: 0 } : side ? { x: '110%', y: 0, opacity: 1 } : { x: 0, y: '100%', opacity: 1 },
   }
 
+  // Toasts render in the open dialog. Re-registers after a StrictMode remount (the main effect below sees the
+  // dialog already open and skips it); leaves on unmount.
+  useEffect(() => {
+    if (dlg.current?.open && !leaveLayer.current) leaveLayer.current = enterToastLayer(dlg.current)
+    return () => {
+      leaveLayer.current?.()
+      leaveLayer.current = null
+    }
+  }, [])
+
   useEffect(() => {
     const d = dlg.current
     if (!d) return
@@ -53,8 +63,6 @@ export function Sheet({ open, onClose, title, children, onClosed }: { open: bool
     }
     // onClosed is read when the exit finishes; it does not restart the animation
   }, [open, sheet])
-
-  useEffect(() => () => leaveLayer.current?.(), [])
 
   const bottom = !side && !reduce
   return (

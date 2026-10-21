@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useState } from 'react'
+import { StrictMode, useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Card, Check, Empty, LoadBar, Pill, Ring, Segmented, SeverityBar, Sheet, Timeline, ToastProvider, useToast } from '../src/ui'
 
@@ -60,6 +60,32 @@ describe('Check', () => {
     expect(box).not.toBeChecked()
   })
 
+  it('a press held past the rollback window keeps the visual until release', () => {
+    vi.useFakeTimers()
+    const onChange = vi.fn()
+    render(<Check checked={false} onChange={onChange} label="Feito" />)
+    const box = screen.getByRole('checkbox')
+    fireEvent.pointerDown(box, { buttons: 1 })
+    act(() => void vi.advanceTimersByTime(3000))
+    expect(box).toBeChecked()
+    fireEvent.click(box)
+    expect(onChange).toHaveBeenCalledWith(true)
+  })
+
+  it('with `pending` it waits for the save instead of rolling back, then shows the prop', () => {
+    vi.useFakeTimers()
+    const props = { checked: false, onChange: () => {}, label: 'Feito' }
+    const { rerender } = render(<Check {...props} />)
+    const box = screen.getByRole('checkbox')
+    fireEvent.pointerDown(box, { buttons: 1 })
+    fireEvent.click(box)
+    rerender(<Check {...props} pending />)
+    act(() => void vi.advanceTimersByTime(5000))
+    expect(box).toBeChecked()
+    rerender(<Check {...props} pending={false} />) // save failed, prop never moved
+    expect(box).not.toBeChecked()
+  })
+
   it('dragging off the control cancels the press', () => {
     const onChange = vi.fn()
     render(<Check checked={false} onChange={onChange} label="Feito" />)
@@ -98,6 +124,38 @@ describe('Toast', () => {
     expect(screen.queryByText('t4')).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByText('t1')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.queryByText('t4')).not.toBeInTheDocument(), { timeout: 2000 })
+  })
+
+  it('stays 5000 ms by default', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    render(<ToastProvider><ToastButton msg="salvo" /></ToastProvider>)
+    fireEvent.click(screen.getByText('go'))
+    act(() => void vi.advanceTimersByTime(4900))
+    expect(screen.getByText('salvo')).toBeInTheDocument()
+    act(() => void vi.advanceTimersByTime(200))
+    vi.useRealTimers() // the exit animation runs on real frames
+    await waitFor(() => expect(screen.queryByText('salvo')).not.toBeInTheDocument())
+  })
+
+  it('pauses while hovered or focused, resumes with the time left', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    render(<ToastProvider><ToastButton msg="salvo" undo={() => {}} /></ToastProvider>)
+    fireEvent.click(screen.getByText('go'))
+    const toast = screen.getByText('salvo')
+    act(() => void vi.advanceTimersByTime(3000))
+    fireEvent.pointerOver(toast)
+    act(() => void vi.advanceTimersByTime(10_000))
+    expect(screen.getByText('salvo')).toBeInTheDocument()
+    fireEvent.pointerOut(toast, { relatedTarget: document.body })
+    act(() => void screen.getByRole('button', { name: 'Desfazer' }).focus())
+    act(() => void vi.advanceTimersByTime(10_000))
+    expect(screen.getByText('salvo')).toBeInTheDocument()
+    act(() => void screen.getByText('go').focus())
+    act(() => void vi.advanceTimersByTime(1900))
+    expect(screen.getByText('salvo')).toBeInTheDocument()
+    act(() => void vi.advanceTimersByTime(200))
+    vi.useRealTimers()
+    await waitFor(() => expect(screen.queryByText('salvo')).not.toBeInTheDocument())
   })
 
   it('no "Desfazer" without undo', () => {
@@ -158,6 +216,27 @@ describe('Sheet', () => {
     render(<ToastProvider><Sheet open onClose={() => {}} title="S"><WithToast /></Sheet></ToastProvider>)
     fireEvent.click(screen.getByText('avisar'))
     expect(screen.getByRole('dialog').contains(screen.getByText('dentro'))).toBe(true)
+  })
+
+  it('under StrictMode (double mount) toasts still land in the open sheet, and back on the page after unmount', () => {
+    function WithToast() {
+      const toast = useToast()
+      return <button onClick={() => toast.show('aviso')}>avisar</button>
+    }
+    function Host({ sheet }: { sheet: boolean }) {
+      return (
+        <ToastProvider>
+          <WithToast />
+          {sheet && <Sheet open onClose={() => {}} title="S"><p>corpo</p></Sheet>}
+        </ToastProvider>
+      )
+    }
+    const { rerender } = render(<StrictMode><Host sheet /></StrictMode>)
+    fireEvent.click(screen.getByText('avisar'))
+    expect(screen.getByRole('dialog').contains(screen.getByText('aviso'))).toBe(true)
+    rerender(<StrictMode><Host sheet={false} /></StrictMode>)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toBeInTheDocument()
   })
 
   it('the close button closes it', async () => {
@@ -231,6 +310,12 @@ describe('Timeline', () => {
     expect(screen.getByText('1 antes de 01/10 · 2 depois de 30/04')).toBeInTheDocument()
     expect(screen.getByText('hoje')).toBeInTheDocument()
   })
+  it('two items with the same date and label both render', () => {
+    const same = { date: '2026-11-06', label: 'Decisão', tone: 'don' as const }
+    render(<Timeline from="2026-10-01" to="2027-04-30" today="2026-10-21" items={[same, same]} />)
+    expect(screen.getAllByText('Decisão')).toHaveLength(2)
+  })
+
   it('no today marker outside the range', () => {
     render(<Timeline from="2026-10-01" to="2027-04-30" today="2027-05-10" items={[]} />)
     expect(screen.queryByText('hoje')).not.toBeInTheDocument()

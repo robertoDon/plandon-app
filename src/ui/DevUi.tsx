@@ -164,7 +164,7 @@ export default function DevUi() {
           <Segmented label="Visão no telefone" value={view} onChange={setView}
             options={[{ value: 'terral', label: 'Terral' }, { value: 'don', label: 'Don' }, { value: 'reuniao', label: 'Reunião' }]} />
           <Card title="A jornada" action={<a href="#j">Todas</a>}>
-            <Timeline from="2026-10-01" to="2027-04-30" today="2026-10-21" items={JOURNEY} />
+            <Timeline from="2026-10-01" to="2027-05-02" today="2026-10-21" items={JOURNEY} />
           </Card>
           <Card title="Saúde"><div className="dev-row"><Ring value={7} total={19} label="entregas" /><Pill tone="warn">Atenção</Pill></div></Card>
           <Card title="Carga"><LoadBar label="David" used={46} cap={40} /></Card>
