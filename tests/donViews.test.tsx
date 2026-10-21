@@ -11,27 +11,29 @@ type Rows = Record<string, Record<string, unknown>[]>
 type Write = { table: string; op: string; values: unknown; match?: Record<string, unknown> }
 
 const mock = vi.hoisted(() => {
-  const m = { db: {} as Rows, writes: [] as Write[], fail: false, profile: null as unknown as Profile }
+  const m = { db: {} as Rows, writes: [] as Write[], fail: false, failOn: [] as string[], profile: null as unknown as Profile }
   const read = (t: string) => {
     const p = Promise.resolve().then(() => ({ data: structuredClone(m.db[t] ?? []), error: null })) as Promise<unknown> & Record<string, unknown>
     p.order = () => p
     p.limit = () => p
     return p
   }
-  const done = async (t: string, op: string, values: unknown, match: Record<string, unknown> | undefined, apply: () => void) => {
+  const done = async (t: string, op: string, values: unknown, match: Record<string, unknown> | undefined, apply: (db: Rows) => void) => {
     m.writes.push({ table: t, op, values, match })
+    const db = m.db // the fixture of this test: a write still in flight at the end of a test must not touch the next one
+    const fails = m.fail || m.failOn.includes(t) // decided now: a write in flight when a test ends must not see the next test's flags
     await new Promise((r) => setTimeout(r, 10))
-    if (m.fail) return { data: null, error: { message: 'boom' } }
-    apply()
+    if (fails) return { data: null, error: { message: 'boom' } }
+    apply(db)
     return { data: [], error: null }
   }
   const supabase = {
     from: (t: string) => ({
       select: () => read(t),
-      insert: (v: Record<string, unknown>) => ({ select: () => done(t, 'insert', v, undefined, () => (m.db[t] ??= []).push({ ...v })) }),
+      insert: (v: Record<string, unknown>) => ({ select: () => done(t, 'insert', v, undefined, (db) => (db[t] ??= []).push({ ...v })) }),
       upsert: (v: Record<string, unknown>) => ({
-        select: () => done(t, 'upsert', v, undefined, () => {
-          const rows = (m.db[t] ??= [])
+        select: () => done(t, 'upsert', v, undefined, (db) => {
+          const rows = (db[t] ??= [])
           const row = rows.find((r) => r.code === v.code)
           if (row) Object.assign(row, v)
           else rows.push({ ...v })
@@ -39,8 +41,8 @@ const mock = vi.hoisted(() => {
       }),
       update: (v: Record<string, unknown>) => ({
         match: (match: Record<string, unknown>) => ({
-          select: () => done(t, 'update', v, match, () => {
-            for (const r of m.db[t] ?? []) if (Object.entries(match).every(([k, x]) => r[k] === x)) Object.assign(r, v)
+          select: () => done(t, 'update', v, match, (db) => {
+            for (const r of db[t] ?? []) if (Object.entries(match).every(([k, x]) => r[k] === x)) Object.assign(r, v)
           }),
         }),
       }),
@@ -122,6 +124,7 @@ beforeEach(() => {
   m.db = fixture()
   m.writes = []
   m.fail = false
+  m.failOn = []
   m.profile = don
 })
 afterEach(cleanup)
@@ -193,8 +196,41 @@ describe('Pendências', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Editar P-02/ }))
     type(await screen.findByRole('textbox', { name: /Responsável de verdade/ }), 'Roberto')
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
-    await waitFor(() => expect(m.writes.some((w) => w.table === 'open_item_internal')).toBe(true))
+    await waitFor(() => expect(m.writes.map((w) => w.table)).toEqual(['open_item_internal', 'open_item'])) // Don-only first
     expect(m.writes.find((w) => w.table === 'open_item_internal')).toMatchObject({ op: 'upsert', values: { code: 'P-02', owner_raw: 'Roberto' } })
+  })
+
+  it('a failed second write leaves nothing half-saved: owner_raw goes first and is put back', async () => {
+    m.failOn = ['open_item']
+    mount(Pendencias)
+    fireEvent.click(await screen.findByRole('button', { name: /Editar P-02/ }))
+    type(await screen.findByRole('textbox', { name: /Responsável de verdade/ }), 'Roberto')
+    type(screen.getByRole('textbox', { name: /^Texto/ }), 'Texto novo')
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(await screen.findByText('Não salvou. Tente de novo.')).toBeInTheDocument()
+    await waitFor(() => expect(m.writes.map((w) => `${w.table}:${w.op}`)).toEqual(['open_item_internal:upsert', 'open_item:update', 'open_item_internal:upsert']))
+    expect(m.writes[0].values).toMatchObject({ owner_raw: 'Roberto' })
+    expect(m.writes[2].values).toMatchObject({ owner_raw: 'David' }) // compensation
+    await waitFor(() => expect(m.db.open_item_internal.find((r) => r.code === 'P-02')).toMatchObject({ owner_raw: 'David' }))
+    expect(m.db.open_item.find((r) => r.code === 'P-02')).toMatchObject({ text: 'Contrato assinado' })
+    // the sheet is still open with the draft
+    expect(screen.getByRole('textbox', { name: /^Texto/ })).toHaveValue('Texto novo')
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled()
+  })
+
+  it('missing required fields get an inline error tied to the field, and focus goes to the first', async () => {
+    mount(Pendencias)
+    fireEvent.click(await screen.findByRole('button', { name: /Editar P-01/ }))
+    type(await screen.findByRole('textbox', { name: /^Texto/ }), '')
+    type(screen.getByRole('textbox', { name: /^Responsável \(como/ }), '')
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
+    const text = await screen.findByRole('textbox', { name: /^Texto/ })
+    await waitFor(() => expect(text).toHaveFocus())
+    expect(text).toHaveAttribute('aria-invalid', 'true')
+    const msg = screen.getByText('Escreva o texto.')
+    expect(text.getAttribute('aria-describedby')).toBe(msg.id)
+    expect(screen.getByText('Diga quem é o responsável.')).toBeInTheDocument()
+    expect(m.writes).toEqual([])
   })
 
   it('resolving ticks at once, offers "Desfazer", and undo reopens', async () => {
@@ -235,7 +271,11 @@ describe('Decisões', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Editar D01/ }))
     fireEvent.click(await screen.findByRole('radio', { name: 'Decidida' }))
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
-    expect(await screen.findByText('Escreva o resultado da decisão.')).toBeInTheDocument()
+    const msg = await screen.findByText('Escreva o resultado da decisão.')
+    const outcome = screen.getByRole('textbox', { name: /^Resultado/ })
+    expect(outcome).toHaveAttribute('aria-invalid', 'true')
+    expect(outcome.getAttribute('aria-describedby')).toBe(msg.id)
+    await waitFor(() => expect(outcome).toHaveFocus())
     expect(m.writes).toEqual([])
     type(screen.getByRole('textbox', { name: /^Resultado/ }), 'Modelo B')
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
@@ -285,6 +325,47 @@ describe('Equipe e carga', () => {
     fireEvent.keyDown(net, { key: 'Enter' })
     await waitFor(() => expect(slack()).toHaveTextContent('12 h'))
     expect(m.writes[0]).toMatchObject({ table: 'person', values: { net_capacity_h: 30.5 }, match: { id: 'david' } })
+  })
+
+  it('caps need at least 1 h, and the day cap cannot pass the week cap', async () => {
+    mount(Equipe)
+    const card = await screen.findByRole('region', { name: 'David' })
+    const day = within(card).getByRole('textbox', { name: 'Limite por dia' })
+    const week = within(card).getByRole('textbox', { name: 'Limite por semana' })
+    type(day, '0')
+    fireEvent.blur(day)
+    expect(within(card).getByText('Use um valor de 1 a 24 h.')).toBeInTheDocument()
+    type(week, '5') // below the day cap (8)
+    fireEvent.blur(week)
+    expect(within(card).getByText(/não pode ser menor que o limite por dia \(8 h\)/)).toBeInTheDocument()
+    type(day, '12') // above the week cap (40 is fine; 12 passes)
+    fireEvent.blur(day)
+    await waitFor(() => expect(m.writes).toHaveLength(1))
+    expect(m.writes[0].values).toEqual({ daily_cap_h: 12 })
+    type(day, '24')
+    fireEvent.blur(day)
+    await waitFor(() => expect(m.writes).toHaveLength(2))
+    type(week, '16')
+    fireEvent.blur(week)
+    expect(within(card).getAllByText(/não pode ser menor/).length).toBeGreaterThan(0)
+    expect(m.writes).toHaveLength(2)
+  })
+
+  it('"1.000" is refused (ambiguous), "7.5" and "7,5" are accepted', async () => {
+    mount(Equipe)
+    const card = await screen.findByRole('region', { name: 'David' })
+    const net = within(card).getByRole('textbox', { name: 'Capacidade líquida' })
+    type(net, '1.000')
+    fireEvent.blur(net)
+    expect(within(card).getByText(/Escreva sem ponto de milhar/)).toBeInTheDocument()
+    expect(m.writes).toEqual([])
+    type(net, '7.5')
+    fireEvent.blur(net)
+    await waitFor(() => expect(m.writes).toHaveLength(1))
+    expect(m.writes[0].values).toEqual({ net_capacity_h: 7.5 })
+    type(net, '1.000,5')
+    fireEvent.blur(net)
+    expect(within(card).getByText(/Digite um número/)).toBeInTheDocument()
   })
 
   it('a failed capacity save rolls the number back', async () => {

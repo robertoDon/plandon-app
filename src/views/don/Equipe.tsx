@@ -12,6 +12,7 @@ import { fmtHours1, teamRow } from '../../don/team'
 type Write = { update: Partial<Pick<Person, 'net_capacity_h' | 'daily_cap_h' | 'weekly_cap_h'>>; match: { id: string } }
 
 const LIMIT = { net: 2000, day: 24, week: 168 }
+const MIN_CAP = 1
 const OVER = new Set(['day_over_capacity', 'week_over_capacity'])
 const SHOWN = 6
 
@@ -44,8 +45,10 @@ export default function Equipe() {
                 </div>
                 <div className="dcaps">
                   <NumberEdit label="Capacidade líquida" value={p.net_capacity_h} max={LIMIT.net} allowEmpty onCommit={(n) => edit(p.id, { net_capacity_h: n })} />
-                  <NumberEdit label="Limite por dia" value={p.daily_cap_h} max={LIMIT.day} onCommit={(n) => edit(p.id, { daily_cap_h: n! })} />
-                  <NumberEdit label="Limite por semana" value={p.weekly_cap_h} max={LIMIT.week} onCommit={(n) => edit(p.id, { weekly_cap_h: n! })} />
+                  <NumberEdit label="Limite por dia" value={p.daily_cap_h} min={MIN_CAP} max={LIMIT.day} onCommit={(n) => edit(p.id, { daily_cap_h: n! })}
+                    validate={(n) => (n > p.weekly_cap_h ? `O limite por dia não pode passar do limite por semana (${fmtHours1(p.weekly_cap_h)}).` : null)} />
+                  <NumberEdit label="Limite por semana" value={p.weekly_cap_h} min={MIN_CAP} max={LIMIT.week} onCommit={(n) => edit(p.id, { weekly_cap_h: n! })}
+                    validate={(n) => (n < p.daily_cap_h ? `O limite por semana não pode ser menor que o limite por dia (${fmtHours1(p.daily_cap_h)}).` : null)} />
                 </div>
                 <Over risks={risks.filter((x) => x.person_id === p.id && OVER.has(x.rule))} />
               </Card>

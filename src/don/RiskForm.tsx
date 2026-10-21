@@ -3,7 +3,7 @@ import type { Deliverable, ManualRisk, Person, Severity } from '../domain/types'
 import { useMutate } from '../lib/data'
 import { Segmented } from '../ui'
 import { SEVERITY } from '../ui'
-import { Field, FormActions, SelectField } from './fields'
+import { Field, FormActions, GuardedField, SelectField, useTerralGuard } from './fields'
 import { addRow } from './mutations'
 
 // created_by is left out: the column defaults to auth.uid()
@@ -19,7 +19,7 @@ export function RiskForm({ people, deliverables, onDone }: { people: Person[]; d
   const [person, setPerson] = useState('')
   const [links, setLinks] = useState('')
   const [note, setNote] = useState('')
-  const [errors, setErrors] = useState<{ title?: string; links?: string }>({})
+  const guard = useTerralGuard() // focus + inline errors only: manual risks are Don-only, nothing goes through the Terral rules
   const [busy, setBusy] = useState(false)
   const write = useMutate<Write>('manual_risk', { optimistic: (old, w) => addRow(old, 'manual_risks', { ...w.insert, created_by: null }) })
 
@@ -28,12 +28,10 @@ export function RiskForm({ people, deliverables, onDone }: { people: Person[]; d
     const known = new Set(deliverables.map((d) => d.code))
     const codes = codesOf(links)
     const unknown = codes.filter((c) => !known.has(c))
-    const next = {
-      title: title.trim() ? undefined : 'Escreva o título do risco.',
-      links: unknown.length ? `Não existe entrega com ${unknown.length === 1 ? 'o código' : 'os códigos'} ${unknown.join(', ')}.` : undefined,
-    }
-    setErrors(next)
-    if (next.title || next.links) return
+    const missing: Record<string, string> = {}
+    if (!title.trim()) missing.title = 'Escreva o título do risco.'
+    if (unknown.length) missing.links = `Não existe entrega com ${unknown.length === 1 ? 'o código' : 'os códigos'} ${unknown.join(', ')}.`
+    if (!guard.check({}, missing)) return
     setBusy(true)
     try {
       await write.mutateAsync({
@@ -48,12 +46,12 @@ export function RiskForm({ people, deliverables, onDone }: { people: Person[]; d
   }
 
   return (
-    <form className="dform" onSubmit={(e) => void submit(e)} noValidate>
-      <Field label="Título" required value={title} onChange={(v) => { setErrors((x) => ({ ...x, title: undefined })); setTitle(v) }} error={errors.title} />
+    <form className="dform" ref={guard.ref} onSubmit={(e) => void submit(e)} noValidate>
+      <GuardedField guard={guard} name="title" label="Título" required value={title} onChange={setTitle} />
       <Segmented label="Gravidade" value={severity} onChange={setSeverity}
         options={(['high', 'medium', 'low'] as const).map((s) => ({ value: s, label: SEVERITY[s].label }))} />
       <SelectField label="Pessoa" value={person} onChange={setPerson} options={[{ value: '', label: 'Ninguém em especial' }, ...people.map((p) => ({ value: p.id, label: p.name }))]} />
-      <Field label="Entregas afetadas" value={links} onChange={(v) => { setErrors((x) => ({ ...x, links: undefined })); setLinks(v) }} error={errors.links} hint="Códigos separados por vírgula, como 3.1, 3.2." />
+      <GuardedField guard={guard} name="links" label="Entregas afetadas" value={links} onChange={setLinks} hint="Códigos separados por vírgula, como 3.1, 3.2." />
       <Field label="Observação" multiline value={note} onChange={setNote} />
       <FormActions onCancel={onDone} busy={busy} save="Criar risco" />
     </form>

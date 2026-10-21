@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import type { OpenItem } from '../domain/types'
 import { useMutate } from '../lib/data'
 import { Segmented } from '../ui'
-import { Field, FormActions, Switch, TerralField, useTerralGuard } from './fields'
+import { Field, FormActions, GuardedField, Switch, useTerralGuard } from './fields'
 import { patchRows } from './mutations'
 
 type ItemWrite = { update: Record<string, unknown>; match: { code: string } }
@@ -24,7 +24,6 @@ export function OpenItemForm({ item, ownerRaw, onDone }: { item: OpenItem; owner
   const [effect, setEffect] = useState(item.effect ?? '')
   const [status, setStatus] = useState(item.status)
   const [visible, setVisible] = useState(item.visible_to_terral)
-  const [required, setRequired] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const guard = useTerralGuard()
   const write = useOpenItemWrite()
@@ -41,11 +40,17 @@ export function OpenItemForm({ item, ownerRaw, onDone }: { item: OpenItem; owner
     const missing: Record<string, string> = {}
     if (!text.trim()) missing.text = 'Escreva o texto.'
     if (!ownerPublic.trim()) missing.owner_public = 'Diga quem é o responsável.'
-    setRequired(missing)
-    const clean = guard.check(visible && !x ? { text, effect, owner_public: ownerPublic } : {})
-    if (Object.keys(missing).length || !clean) return
+    if (!guard.check(visible && !x ? { text, effect, owner_public: ownerPublic } : {}, missing)) return
     setBusy(true)
+    // Two tables, two writes. The Don-only one goes first: if the visible one then fails, it is put back, so a
+    // failed save leaves nothing half-saved (and Terral never sees a change without its owner_raw).
+    const rawChanged = raw.trim() !== ownerRaw
+    let rawWritten = false
     try {
+      if (rawChanged) {
+        await internal.mutateAsync({ upsert: { code: item.code, owner_raw: raw.trim() } })
+        rawWritten = true
+      }
       await write.mutateAsync({
         update: {
           text: text.trim(), owner_public: ownerPublic.trim(), due: due || null, effect: effect.trim() || null, status,
@@ -54,10 +59,10 @@ export function OpenItemForm({ item, ownerRaw, onDone }: { item: OpenItem; owner
         },
         match: { code: item.code },
       })
-      if (raw.trim() !== ownerRaw) await internal.mutateAsync({ upsert: { code: item.code, owner_raw: raw.trim() } })
       onDone()
     } catch {
-      // useMutate rolled the cache back and showed the toast; the sheet stays open with the draft
+      // useMutate rolled the failed write back and showed "Não salvou"; the sheet stays open with the draft
+      if (rawWritten) await internal.mutateAsync({ upsert: { code: item.code, owner_raw: ownerRaw } }).catch(() => {})
     } finally {
       setBusy(false)
     }
@@ -66,14 +71,13 @@ export function OpenItemForm({ item, ownerRaw, onDone }: { item: OpenItem; owner
   return (
     <form className="dform" ref={guard.ref} onSubmit={(e) => void submit(e)} noValidate>
       <Segmented label="Situação" value={status} onChange={setStatus} options={[{ value: 'open', label: 'Aberta' }, { value: 'resolved', label: 'Resolvida' }]} />
-      <TerralField guard={guard} name="text" label="Texto" multiline required value={text} onChange={(v) => { setRequired((r) => ({ ...r, text: '' })); setText(v) }} error={required.text} />
-      <TerralField guard={guard} name="owner_public" label="Responsável (como a Terral vê)" required value={ownerPublic} onChange={(v) => { setRequired((r) => ({ ...r, owner_public: '' })); setOwnerPublic(v) }}
-        error={required.owner_public} hint="Uma posição, não uma pessoa da Don." />
+      <GuardedField guard={guard} name="text" label="Texto" multiline required value={text} onChange={setText} />
+      <GuardedField guard={guard} name="owner_public" label="Responsável (como a Terral vê)" required value={ownerPublic} onChange={setOwnerPublic} hint="Uma posição, não uma pessoa da Don." />
       <Field label="Responsável de verdade (só a Don vê)" value={raw} onChange={setRaw} />
       <div className="dform-two">
         <Field label="Prazo" type="date" value={due} onChange={setDue} hint={item.due_text && !item.due ? `Texto original: ${item.due_text}` : undefined} />
       </div>
-      <TerralField guard={guard} name="effect" label="Efeito" multiline value={effect} onChange={setEffect} />
+      <GuardedField guard={guard} name="effect" label="Efeito" multiline value={effect} onChange={setEffect} />
       <Switch checked={x ? false : visible} onChange={setVisible} disabled={x} label="Visível para a Terral"
         hint={x ? 'Divergências ficam só com a Don. A Terral nunca vê.' : 'A Terral lê o texto, o responsável, o prazo e o efeito.'} />
       <FormActions onCancel={onDone} busy={busy} />

@@ -14,6 +14,11 @@ describe('validateTerralVisible', () => {
   it('blocks Don hours', () => {
     expect(validateTerralVisible({ effect: 'custa 21,0 h' })).toMatch(/21,0 h/)
   })
+  it('blocks every spelling of hours, and hidden characters in a name', () => {
+    for (const t of ['8 horas', '2h30', '21  h', '21 hrs']) expect(validateTerralVisible({ effect: t })).toMatch(/horas da Don/)
+    expect(validateTerralVisible({ text: 'Fala com o Da\u200Bvid' })).toMatch(/David/)
+    expect(validateTerralVisible({ text: 'Fala com o Dávid' })).toMatch(/David/)
+  })
   it('lets clean text through, and empty fields', () => {
     expect(validateTerralVisible({ text: 'Base de vendas pendente' })).toBeNull()
     expect(validateTerralVisible({})).toBeNull()

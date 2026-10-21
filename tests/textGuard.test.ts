@@ -7,6 +7,17 @@ describe('findBanned', () => {
     expect(findBanned('Davidson e margens')).toEqual([])
     expect(findBanned('A MARGEM do canal')).toEqual(['margem'])
     expect(findBanned('falar com ROBERTO e beto')).toEqual(['Roberto', 'Beto'])
+    expect(findBanned('Dávid e DAVID')).toEqual(['David'])
+  })
+  it('sees through invisible and look-alike characters', () => {
+    expect(findBanned('Da\u200Bvid')).toEqual(['David']) // zero-width space
+    expect(findBanned('Da\u00ADvid')).toEqual(['David']) // soft hyphen
+    expect(findBanned('D\u2060avid')).toEqual(['David']) // word joiner
+    expect(findBanned('\u202EDavid')).toEqual(['David']) // bidi mark
+    expect(findBanned('Da\u0301vid')).toEqual(['David']) // combining accent
+    expect(findBanned('\uFF24avid')).toEqual(['David']) // full-width D
+    expect(findBanned('mar\u200Bgem')).toEqual(['margem'])
+    expect(findBanned('Davi\u200Bdson')).toEqual([]) // still a whole word
   })
 })
 
@@ -15,7 +26,20 @@ describe('findHours', () => {
     expect(findHours('custa 21,0 h')).toEqual(['21,0 h'])
     expect(findHours('247.47 h em 11/12/2026, R$ 105,6 mi')).toEqual(['247.47 h'])
     expect(findHours('11/12/2026, R$ 105,6 mi, 3.12')).toEqual([])
-    expect(findHours('reunião às 18h30 e 5 horas')).toEqual([])
+  })
+  it('finds every spelling of an hour amount', () => {
+    expect(findHours('8 horas')).toEqual(['8 horas'])
+    expect(findHours('1 hora e 2,5 Horas')).toEqual(['1 hora', '2,5 Horas'])
+    expect(findHours('2h30')).toEqual(['2h30'])
+    expect(findHours('21  h e 21\u00A0h')).toEqual(['21  h', '21\u00A0h'])
+    expect(findHours('21 hrs, 3hr')).toEqual(['21 hrs', '3hr'])
+    expect(findHours('21\u200B h')).toEqual(['21 h']) // zero-width char inside
+    // a clock time cannot be told from a duration: flagged on purpose (documented in textGuard.ts)
+    expect(findHours('reunião às 18h30 e às 09h')).toEqual(['18h30', '09h'])
+  })
+  it('leaves words and plain numbers alone', () => {
+    expect(findHours('21 hoje, 3 hospitais, 5 Harvard, fase 2 horário, 10 hectares')).toEqual([])
+    expect(findHours('3.12 e I2, 15/10, R$ 40 mil')).toEqual([])
   })
 })
 

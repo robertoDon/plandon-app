@@ -43,9 +43,10 @@ export function Switch({ checked, onChange, label, hint, disabled }: {
 }
 
 /**
- * The guard for fields Terral reads. `check(fields)` sets an inline error per offending field, focuses the first
- * one and returns false: the caller then keeps its sheet open. Typing in a field clears its error.
- * Attach `ref` to the <form>; use <TerralField guard={...}> for the inputs.
+ * Inline errors for a form, with the guard for fields Terral reads. `check(fields, extra)` sets an error per
+ * offending field (Terral guard on `fields`, plus any `extra` errors such as required fields), focuses the first
+ * invalid field and returns false: the caller then keeps its sheet open. Typing in a field clears its error.
+ * Attach `ref` to the <form>; use <GuardedField> (alias TerralField) for the inputs.
  */
 export function useTerralGuard() {
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -55,8 +56,8 @@ export function useTerralGuard() {
   }, [errors])
   return {
     errors, ref,
-    check(fields: Record<string, string>) {
-      const e = terralErrors(fields)
+    check(fields: Record<string, string>, extra: Record<string, string> = {}) {
+      const e = { ...extra, ...terralErrors(fields) }
       setErrors(e)
       return Object.keys(e).length === 0
     },
@@ -68,10 +69,11 @@ export function useTerralGuard() {
 
 type Guard = ReturnType<typeof useTerralGuard>
 
-/** A Field whose text Terral reads: shows the guard's error for `name` and clears it on edit. */
-export function TerralField({ name, guard, onChange, error, ...rest }: Omit<Parameters<typeof Field>[0], 'name'> & { name: string; guard: Guard }) {
-  return <Field {...rest} name={name} error={guard.errors[name] ?? error} onChange={(v) => { guard.clear(name); onChange(v) }} />
+/** A Field that shows the guard's error for `name` and clears it on edit. For text Terral reads, or any required field. */
+export function GuardedField({ name, guard, onChange, ...rest }: Omit<Parameters<typeof Field>[0], 'name' | 'error'> & { name: string; guard: Guard }) {
+  return <Field {...rest} name={name} error={guard.errors[name]} onChange={(v) => { guard.clear(name); onChange(v) }} />
 }
+export const TerralField = GuardedField
 
 /** Cancel + Save row at the end of a sheet form. */
 export function FormActions({ onCancel, busy, save = 'Salvar', error }: { onCancel: () => void; busy?: boolean; save?: string; error?: ReactNode }) {
@@ -102,8 +104,10 @@ export function useEditor<T>() {
  * A number edited in place. Commits on Enter or blur, only when valid and changed; Escape puts the old value back.
  * Empty means "no value" (null) when `allowEmpty`. The caller's save is optimistic, so the shown value follows `value`.
  */
-export function NumberEdit({ label, value, onCommit, min = 0, max, allowEmpty, unit = 'h' }: {
+export function NumberEdit({ label, value, onCommit, min = 0, max, allowEmpty, unit = 'h', validate }: {
   label: string; value: number | null; onCommit: (n: number | null) => void; min?: number; max: number; allowEmpty?: boolean; unit?: string
+  /** Extra rule against other fields; returns the message or null. */
+  validate?: (n: number) => string | null
 }) {
   const shown = (v: number | null) => (v === null ? '' : String(v).replace('.', ','))
   const [text, setText] = useState(shown(value))
@@ -117,9 +121,13 @@ export function NumberEdit({ label, value, onCommit, min = 0, max, allowEmpty, u
       if (!allowEmpty) return setError('Digite um valor.')
       return value === null ? setError(null) : (setError(null), onCommit(null))
     }
+    // "1.000" is 1 in code and 1000 to a Brazilian reader: refuse it instead of guessing. Decimals take a comma ("7,5").
+    if (/^\d+\.\d{3}$/.test(t)) return setError('Escreva sem ponto de milhar. Decimais com vírgula, como 7,5.')
     const n = /^\d+([.,]\d+)?$/.test(t) ? Number(t.replace(',', '.')) : NaN
     if (Number.isNaN(n)) return setError('Digite um número, como 7,5.')
     if (n < min || n > max) return setError(`Use um valor de ${min} a ${max} ${unit}.`)
+    const rule = validate?.(n)
+    if (rule) return setError(rule)
     setError(null)
     if (n !== value) onCommit(n)
   }

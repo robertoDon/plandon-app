@@ -36,11 +36,15 @@ export interface DecisionDraft {
   decided_at: string
 }
 
-/** Mirrors the record_decision rules: a decided decision has an outcome, who decided and when. */
-export function validateDecision(d: DecisionDraft): string | null {
-  if (d.status !== 'decided') return null
-  if (!d.outcome.trim()) return 'Escreva o resultado da decisão.'
-  if (!d.decided_by.trim()) return 'Diga quem decidiu.'
-  if (!d.decided_at) return 'Informe a data da decisão.'
-  return null
+/** Mirrors the record_decision rules: a decided decision has an outcome, who decided and when. Error per field. */
+export function decisionErrors(d: DecisionDraft): Record<string, string> {
+  const e: Record<string, string> = {}
+  if (d.status !== 'decided') return e
+  if (!d.outcome.trim()) e.outcome = 'Escreva o resultado da decisão.'
+  if (!d.decided_by.trim()) e.decided_by = 'Diga quem decidiu.'
+  if (!d.decided_at) e.decided_at = 'Informe a data da decisão.'
+  return e
 }
+
+/** First message of decisionErrors, or null. */
+export const validateDecision = (d: DecisionDraft): string | null => Object.values(decisionErrors(d))[0] ?? null

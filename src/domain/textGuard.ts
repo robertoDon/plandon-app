@@ -1,8 +1,15 @@
 export const DON_NAMES = ['David', 'Lucas', 'Beto', 'Roberto']
 
-export const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+/**
+ * Lowercase, accent-free, and with invisible characters removed: NFKD folds look-alike forms (full-width letters),
+ * then \p{M} (combining marks) and \p{Cf} (zero-width, soft hyphen, bidi marks) go, so "Da\u200Bvid" reads "david".
+ * ponytail: letters of other scripts that only look Latin (Cyrillic "а") are not folded.
+ */
+export const fold = (s: string) => s.normalize('NFKD').replace(/[\p{M}\p{Cf}]/gu, '').toLowerCase()
 const BANNED = [...DON_NAMES, 'margem']
-const HOURS = /\d+(?:[.,]\d+)?\s?h\b/gi
+// An amount of hours: "21 h", "21,5h", "21  h", "8 horas", "1 hora", "21 hrs", "2h30".
+// ponytail: a clock time ("09h", "18h30") cannot be told from a duration, so it is flagged too; write "às 9 da manhã".
+const HOURS = /\d+h\d+|\d+(?:[.,]\d+)?\s*(?:h(?![a-z\d])|hrs?\b|horas?\b)/gi
 const CODE = /(?<![\d.])(3\.(?:1[0-4]|[1-9])|I[1-5])(?![\d])/g
 
 const unique = (a: string[]) => [...new Set(a)]
@@ -16,9 +23,8 @@ export function findBanned(text: string): string[] {
     .map((x) => x.w)
 }
 
-// ponytail: clock times like "09h" are false positives; accepted (Terral text rarely has them).
 export function findHours(text: string): string[] {
-  return unique(text.match(HOURS) ?? [])
+  return unique(text.replace(/\p{Cf}/gu, '').match(HOURS) ?? [])
 }
 
 export const findForbidden = (text: string): string[] => unique([...findBanned(text), ...findHours(text)])
