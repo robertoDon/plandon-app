@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { NavLink, matchPath, useLocation } from 'react-router'
+import { NavLink, matchPath, useLocation, useNavigationType } from 'react-router'
 import { signOut, useSession } from '../auth/useSession'
 import { Sheet } from '../ui'
 import { matchRoute } from './routes'
@@ -23,6 +23,7 @@ const isActive = (s: Section, path: string) => !!matchPath({ path: s.path, end: 
 /** Sidebar of 248 px from 900 px wide; below that, a bottom tab bar of the first 4 sections plus "Mais". */
 export function Shell({ sections, children }: { sections: Section[]; children: ReactNode }) {
   const { pathname } = useLocation()
+  const navType = useNavigationType()
   const [moreOpen, setMoreOpen] = useState(false)
   const scrolled = useScrolled(40)
   const title = matchRoute(pathname)?.title ?? ''
@@ -38,7 +39,8 @@ export function Shell({ sections, children }: { sections: Section[]; children: R
   // the dialog has closed, since closing returns focus to "Mais".
   useEffect(() => {
     if (first.current) return void (first.current = false)
-    window.scrollTo(0, 0) // a new page starts at its top, not where the last one was scrolled
+    // a new page starts at its top; back/forward (POP) leaves the browser's own scroll restoration alone
+    if (navType !== 'POP') window.scrollTo(0, 0)
     if (moreOpen) {
       focusAfterSheet.current = true
       setMoreOpen(false)

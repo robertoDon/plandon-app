@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { TerralData } from '../domain/terralView'
 import { Card, Empty, Pill, Segmented, Timeline, type TimelineItem } from '../ui'
-import { useToday } from '../don/blocks'
+import { useToday } from '../shared/useToday'
 import { milestones, monthLong, projectSpan, type Milestone, type MilestoneKind } from './model'
 import { Row, Tag, TerralPage, useTerralCtx } from './Page'
 

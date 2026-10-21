@@ -1,5 +1,5 @@
 import { diffDays, fmtDate, type ISODate } from '../domain/dates'
-import type { Health } from '../domain/risk'
+import type { Health, Risk } from '../domain/risk'
 import type { Deliverable, OpenItem, ToSchedule } from '../domain/types'
 import type { TerralData } from '../domain/terralView'
 import type { Tone } from '../ui'
@@ -116,14 +116,110 @@ export function terralTodos(t: TerralData): TerralTodo[] {
   return items.sort((a, b) => confirmed(a) - confirmed(b) || (a.date ?? '9999').localeCompare(b.date ?? '9999') || a.key.localeCompare(b.key, 'pt-BR', { numeric: true }))
 }
 
-/** Due pill of an open item: overdue, today, within a week. */
-export function dueTone(due: ISODate | null, today: ISODate): { tone: Tone; label: string } | null {
+/**
+ * Due pill of an open item. Overdue is red only when it holds a deliverable due within 14 days (the engine's "high"),
+ * amber otherwise; a close due date is neutral.
+ */
+export function dueTone(due: ISODate | null, today: ISODate, high = false): { tone: Tone; label: string } | null {
   if (!due) return null
   const n = diffDays(due, today)
-  if (n < 0) return { tone: 'bad', label: n === -1 ? 'venceu ontem' : `venceu há ${-n} dias` }
-  if (n === 0) return { tone: 'warn', label: 'vence hoje' }
-  if (n <= 7) return { tone: 'warn', label: n === 1 ? 'amanhã' : `${n} dias` }
+  if (n < 0) return { tone: high ? 'bad' : 'warn', label: n === -1 ? 'venceu ontem' : `venceu há ${-n} dias` }
+  if (n === 0) return { tone: 'mute', label: 'vence hoje' }
+  if (n <= 7) return { tone: 'mute', label: n === 1 ? 'vence amanhã' : `vence em ${n} dias` }
   return null
+}
+
+const RANK = { high: 0, medium: 1, low: 2 } as const
+const q = (s: string) => `«${s}»`
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
+
+/**
+ * The health card's "por quê" in executive pt-BR, built from the risks' structured fields (rule, ref, codes, date) and
+ * Terral's own data: names, never internal codes. Late deliverables first, then groups by rule, high before medium;
+ * at most `max` lines. `only` keeps what touches one deliverable (its detail page).
+ */
+export function terralReasons(
+  result: { risks: Risk[]; health: Record<string, Health> },
+  t: Pick<TerralData, 'deliverables' | 'decisions' | 'to_schedule' | 'dependencies' | 'open_items'>,
+  today: ISODate,
+  opts: { only?: string; max?: number } = {},
+): string[] {
+  const dlv = new Map(t.deliverables.map((d) => [d.code, d]))
+  const name = (code: string) => q(dlv.get(code)?.name ?? 'uma entrega')
+  const held = (codes: string[]) => (codes.length === 1 ? `a entrega ${name(codes[0])}` : `${codes.length} entregas`)
+  const risks = result.risks.filter((r) => r.severity !== 'low' && (!opts.only || r.codes.includes(opts.only)))
+
+  // Late deliverables: one line each when alone, one grouped line (oldest first) when several.
+  const lateOnes = t.deliverables
+    .filter((d) => result.health[d.code] === 'late' && (!opts.only || d.code === opts.only))
+    .map((d) => {
+      const built = !d.built_at && !!d.built_date && d.built_date < today
+      return { d, built, date: (built ? d.built_date : d.in_use_end ?? d.in_use_start)! }
+    })
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const late = lateOnes.length === 1
+    ? [`${q(lateOnes[0].d.name)}: ${lateOnes[0].built ? 'a construção estava prevista' : 'o uso estava previsto'} para ${fmtDate(lateOnes[0].date)}.`]
+    : lateOnes.length > 1
+      ? [`${lateOnes.length} entregas passaram da data prevista. A mais antiga é ${q(lateOnes[0].d.name)}, prevista para ${fmtDate(lateOnes[0].date)}.`]
+      : []
+
+  const groups: { rank: number; text: string }[] = []
+  const of = (rule: Risk['rule']) => risks.filter((r) => r.rule === rule)
+  const rank = (rs: Risk[]) => Math.min(...rs.map((r) => RANK[r.severity]))
+  const union = (rs: Risk[]) => [...new Set(rs.flatMap((r) => r.codes))]
+
+  const overdue = of('terral_dependency_overdue')
+  if (overdue.length) {
+    const n = overdue.length
+    const dates = [...new Set(overdue.map((r) => r.date).filter(Boolean))]
+    const when = dates.length === 1 ? ` de ${fmtDate(dates[0]!)}` : ''
+    const codes = union(overdue)
+    const holders = overdue.filter((r) => r.codes.length).length
+    const lead = n === 1 ? 'Uma pendência passou do prazo' : `${n} pendências passaram do prazo`
+    const who = n === 1 ? 'Ela segura' : holders === 1 ? 'Uma delas segura' : `${holders} delas seguram`
+    groups.push({ rank: rank(overdue), text: `${lead}${when}.${codes.length ? ` ${who} ${held(codes)}.` : ''}` })
+  }
+
+  const decisions = of('decision_late_blocking')
+  if (decisions.length === 1) {
+    const r = decisions[0]
+    const dec = t.decisions.find((x) => x.code === r.ref)
+    groups.push({ rank: rank(decisions), text: `A decisão ${q(dec?.title ?? 'da diretoria')} estava prevista para ${fmtDate(r.date!)} e ainda não foi registrada. Ela libera ${r.codes.length === 1 ? name(r.codes[0]) : `${r.codes.length} entregas`}.` })
+  } else if (decisions.length > 1) {
+    const codes = union(decisions)
+    groups.push({ rank: rank(decisions), text: `${decisions.length} decisões da diretoria passaram da data e ainda não foram registradas. Elas liberam ${codes.length === 1 ? name(codes[0]) : `${codes.length} entregas`}.` })
+  }
+
+  const unconfirmed = of('hours_unconfirmed')
+  if (unconfirmed.length) {
+    const first = [...unconfirmed].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))[0]
+    const closes = first.date && first.date < today ? `fechou em ${fmtDate(first.date)}` : `fecha em ${fmtDate(first.date!)}`
+    const what = t.to_schedule.find((x) => x.id === first.ref)?.what
+    groups.push({ rank: rank(unconfirmed), text: unconfirmed.length === 1
+      ? `Falta combinar a data de ${q(what ?? 'uma agenda')}. A janela ${closes}.`
+      : `Falta combinar a data de ${unconfirmed.length} agendas. A primeira janela ${closes}.` })
+  }
+
+  const noDate = of('deliverable_no_in_use_date')
+  if (noDate.length === 1) {
+    const r = noDate[0]
+    const d = dlv.get(r.ref!)
+    // as the engine: open items still open that this deliverable's in-use date depends on
+    const waits = d?.in_use_start
+      ? t.dependencies.filter((x) => x.from_kind === 'open_item' && !x.suggested && x.to_code === d.code && t.open_items.some((o) => o.code === x.from_ref && o.status === 'open')).length
+      : 0
+    groups.push({ rank: rank(noDate), text: waits
+      ? `${name(r.ref!)}: a data de uso espera ${waits} ${plural(waits, 'pendência', 'pendências')}.`
+      : `${name(r.ref!)} ainda não tem data de uso.` })
+  } else if (noDate.length > 1) {
+    groups.push({ rank: rank(noDate), text: `${noDate.length} entregas ainda não têm data de uso combinada.` })
+  }
+
+  // Don's published note on a deliverable ("attention" flag), as Don wrote it for Terral. The detail page shows it apart.
+  const flags = opts.only ? [] : t.deliverables.filter((d) => d.published_flag)
+  for (const d of flags) groups.push({ rank: RANK.medium + 0.5, text: `${q(d.name)}: ${d.published_flag}` })
+
+  return [...late, ...groups.sort((a, b) => a.rank - b.rank).map((g) => g.text)].slice(0, opts.max ?? 3)
 }
 
 export const ISO_RE = /^\d{4}-\d{2}-\d{2}$/

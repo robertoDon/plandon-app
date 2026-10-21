@@ -1,7 +1,7 @@
 import { fmtDate } from '../domain/dates'
 import type { Decision } from '../domain/types'
 import { Card, Empty, Pill, Sheet } from '../ui'
-import { useToday } from '../don/blocks'
+import { useToday } from '../shared/useToday'
 import { useEditor } from '../don/fields'
 import { DecisionForm } from './actions'
 import { byCode } from './model'

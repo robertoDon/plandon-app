@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 import { evaluate } from '../domain/risk'
 import { Card, Empty, Pill } from '../ui'
-import { useToday } from '../don/blocks'
+import { useToday } from '../shared/useToday'
 import { deliverableStatus, inUseText } from './model'
 import { TerralPage, useTerralCtx } from './Page'
 

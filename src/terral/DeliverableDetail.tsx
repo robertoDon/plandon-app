@@ -4,11 +4,11 @@ import { evaluate } from '../domain/risk'
 import type { TerralData } from '../domain/terralView'
 import type { Deliverable } from '../domain/types'
 import { Card, Empty, Pill } from '../ui'
-import { useToday } from '../don/blocks'
+import { useToday } from '../shared/useToday'
 import { Comments } from '../shared/Comments'
 import { Evidence } from '../shared/Evidence'
 import { useConfirmDate } from './actions'
-import { deliverableStatus, inUseText } from './model'
+import { deliverableStatus, inUseText, terralReasons } from './model'
 import { PREVIEW_HINT, Row, TerralPage, useTerralCtx } from './Page'
 
 const ORIGIN: Record<Deliverable['origin'], string> = { escopo2: 'Escopo 2', instrumento: 'Instrumento' }
@@ -39,8 +39,8 @@ function Body({ d, x }: { d: TerralData; x: Deliverable }) {
   const confirm = useConfirmDate()
   const result = evaluate(d, t)
   const s = deliverableStatus(x, result.health[x.code])
-  // why it needs attention, in the engine's words (Terral-safe: the engine ran on Terral's data)
-  const why = x.in_use_at ? [] : result.risks.filter((r) => r.severity !== 'low' && r.codes.includes(x.code)).map((r) => r.title)
+  // why it needs attention, in executive words built from the engine's risks on Terral's data
+  const why = x.in_use_at ? [] : terralReasons(result, d, t, { only: x.code })
   const schedule = d.to_schedule.filter((y) => y.code === x.code)
   const deps = d.dependencies.filter((y) => y.to_code === x.code && !y.suggested)
   const off = preview ? { disabled: true, title: PREVIEW_HINT } : {}
@@ -52,7 +52,7 @@ function Body({ d, x }: { d: TerralData; x: Deliverable }) {
           <Pill tone={s.tone}>{s.label}</Pill>
           {x.in_use_confirmed && !x.in_use_at && <Pill tone="ok">data confirmada</Pill>}
         </div>
-        {why.length > 0 && <ul className="t-reasons t-why" aria-label="Por quê">{why.slice(0, 3).map((w) => <li key={w}>{w}</li>)}</ul>}
+        {why.length > 0 && <ul className="t-reasons t-why" aria-label="Por quê">{why.map((w) => <li key={w}>{w}</li>)}</ul>}
         {x.published_flag && <p className="t-flag"><b>Aviso da Equipe Don:</b> {x.published_flag}</p>}
         <dl className="t-facts">
           <div><dt>Construção</dt><dd>{x.built_at ? `Concluída em ${fmtDate(x.built_at, true)}` : x.built_date ? `Prevista para ${fmtDate(x.built_date, true)}` : 'A definir'}</dd></div>
@@ -122,7 +122,7 @@ function Dep({ d, kind, ref_, base }: { d: TerralData; kind: string; ref_: strin
   if (kind === 'open_item') {
     const x = d.open_items.find((y) => y.code === ref_)
     if (!x) return null
-    return <Row date={x.due} clamp title={x.text} detail={`Pendência ${x.code} · ${x.owner_public}`}
+    return <Row date={x.due} clamp title={x.text} detail={`Pendência · ${x.owner_public}`}
       side={x.status === 'resolved' ? <Pill tone="ok">Resolvida</Pill> : <Pill tone="mute">Aberta</Pill>} />
   }
   if (kind === 'deliverable') {

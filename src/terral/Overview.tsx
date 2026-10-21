@@ -5,10 +5,10 @@ import { diffDays, fmtDate } from '../domain/dates'
 import { evaluate } from '../domain/risk'
 import type { TerralData } from '../domain/terralView'
 import { Card, Empty, Pill, Ring, Segmented } from '../ui'
-import { useToday } from '../don/blocks'
+import { useToday } from '../shared/useToday'
 import { useConfirmDate } from './actions'
 import { Journey } from './Milestones'
-import { dueTone, greeting, HEALTH, milestones, projectSpan, spHour, terralTodos, weekNo, type TerralTodo } from './model'
+import { dueTone, greeting, HEALTH, terralReasons, milestones, projectSpan, spHour, terralTodos, weekNo, type TerralTodo } from './model'
 import { PREVIEW_HINT, Row, Tag, TerralPage, useTerralCtx } from './Page'
 
 const TODOS_SHOWN = 6
@@ -66,6 +66,9 @@ function Body({ d, today }: { d: TerralData; today: string }) {
   const todos = every.filter((x) => x.kind === tab)
   const shown = all ? todos : todos.slice(0, TODOS_SHOWN)
   const h = HEALTH[result.project.status]
+  const reasons = useMemo(() => terralReasons(result, d, today), [result, d, today])
+  // pendências whose delay holds a deliverable due within 14 days (the engine's "high"): the only red ones
+  const urgent = useMemo(() => new Set(result.risks.filter((r) => r.rule === 'terral_dependency_overdue' && r.severity === 'high').map((r) => r.ref)), [result])
 
   return (
     <>
@@ -73,18 +76,18 @@ function Body({ d, today }: { d: TerralData; today: string }) {
         <Ring value={inUse} total={d.deliverables.length} label="entregas" />
         <div className="t-health-head">
           <Pill tone={h.tone}>{h.label}</Pill>
-          <h3>{h.head}</h3>
+          <h2 className="t-health-title">{h.head}</h2>
         </div>
-        {result.project.reasons.length ? (
+        {reasons.length ? (
           <ul className="t-reasons" aria-label="Por quê">
-            {result.project.reasons.map((r) => <li key={r}>{r}</li>)}
+            {reasons.map((r) => <li key={r}>{r}</li>)}
           </ul>
         ) : <p className="t-reasons t-reasons-none">Nenhum ponto pede atenção agora.</p>}
         <dl className="t-kpis">
           <div><dt>entregas em uso</dt><dd className="num">{inUse}</dd></div>
           <div><dt>próximo marco</dt><dd className="num" title={nextKey?.title}>{nextKey ? fmtDate(nextKey.date) : '—'}</dd></div>
           <div><dt>decisões tomadas</dt><dd className="num">{decided}/{d.decisions.length}</dd></div>
-          <div><dt>pendências da Terral</dt><dd className="num">{openItems}</dd></div>
+          <div><dt>pendências em aberto</dt><dd className="num">{openItems}</dd></div>
         </dl>
       </Card>
 
@@ -112,7 +115,7 @@ function Body({ d, today }: { d: TerralData; today: string }) {
           {todos.length ? (
             <>
               <ul className="t-list t-todos" aria-label={tab === 'open_item' ? 'Pendências da Terral' : 'Datas a confirmar'}>
-                {shown.map((x) => <TodoRow key={x.key} x={x} today={today} preview={preview} onConfirm={confirm.ask} />)}
+                {shown.map((x) => <TodoRow key={x.key} x={x} today={today} urgent={urgent} preview={preview} onConfirm={confirm.ask} />)}
               </ul>
               {todos.length > TODOS_SHOWN && (
                 <button type="button" className="dlink t-more" aria-expanded={all} onClick={() => setAll(!all)}>
@@ -128,14 +131,14 @@ function Body({ d, today }: { d: TerralData; today: string }) {
   )
 }
 
-function TodoRow({ x, today, preview, onConfirm }: { x: TerralTodo; today: string; preview: boolean; onConfirm: ReturnType<typeof useConfirmDate>['ask'] }) {
+function TodoRow({ x, today, urgent, preview, onConfirm }: { x: TerralTodo; today: string; urgent: Set<string | undefined>; preview: boolean; onConfirm: ReturnType<typeof useConfirmDate>['ask'] }) {
   if (x.kind === 'open_item') {
     const o = x.item
-    const due = dueTone(o.due, today)
+    const due = dueTone(o.due, today, urgent.has(o.code))
     return (
       <Row date={o.due} clamp title={o.text}
         detail={[o.effect && `Se não resolver: ${o.effect}`, !o.due && o.due_text].filter(Boolean).join(' · ') || o.owner_public}
-        side={due ? <Pill tone={due.tone}>{due.label}</Pill> : <Tag>{o.code}</Tag>} />
+        side={due && <Pill tone={due.tone}>{due.label}</Pill>} />
     )
   }
   const s = x.item

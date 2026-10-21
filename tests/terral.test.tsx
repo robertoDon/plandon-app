@@ -59,7 +59,9 @@ const { Deliverables } = await import('../src/terral/Deliverables')
 const { DeliverableDetail } = await import('../src/terral/DeliverableDetail')
 const { Decisions } = await import('../src/terral/Decisions')
 const { Goals } = await import('../src/terral/Goals')
-const { greeting, projectSpan, weekNo } = await import('../src/terral/model')
+const { greeting, projectSpan, weekNo, terralReasons, dueTone } = await import('../src/terral/model')
+const { evaluate } = await import('../src/domain/risk')
+const { extractCodes } = await import('../src/domain/textGuard')
 const { default: VisaoTerral } = await import('../src/views/don/VisaoTerral')
 const { m } = mock
 
@@ -148,6 +150,10 @@ describe('Visão geral', () => {
     expect(await screen.findByRole('img', { name: '2 de 19 entregas' })).toHaveTextContent('2/19')
     expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/^(Bom dia|Boa tarde|Boa noite), Júlio\.$/)
     expect(screen.getByText('decisões tomadas').nextSibling).toHaveTextContent('0/15')
+    expect(screen.getByText('pendências em aberto')).toBeInTheDocument()
+    // heading order: h1, then the card's h2 (no h1 → h3 jump)
+    expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0)
+    expect(screen.getByRole('heading', { level: 2, name: 'Alguns pontos pedem atenção.' })).toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'Próximos marcos' }).children).toHaveLength(5)
   })
 
@@ -345,5 +351,100 @@ describe('data contract', () => {
       const fromData = [...src.matchAll(/import\s*{([^}]*)}\s*from\s*'[./]*lib\/data'/g)].flatMap((x) => x[1].split(',').map((s) => s.trim()).filter(Boolean))
       for (const name of fromData) expect(['useTerralData', 'useMutate'], `${f}: ${name}`).toContain(name)
     }
+  })
+})
+
+describe('executive reasons', () => {
+  const clean = (lines: string[]) => {
+    for (const l of lines) {
+      expect(l).not.toMatch(/\b[PX]-\d/)
+      expect(extractCodes(l), l).toEqual([])
+      expect(findForbidden(l), l).toEqual([])
+    }
+  }
+
+  it('on the real plan at 10/11: grouped, named, no codes, at most 3 lines', () => {
+    const t = toTerralData(realPlan())
+    const lines = terralReasons(evaluate(t, TODAY), t, TODAY)
+    expect(lines).toEqual([
+      '11 pendências passaram do prazo de 26/10. Uma delas segura a entrega «Lançamento interno».',
+      'Falta combinar a data de «Alinhar a mensagem com a diretoria». A janela fecha em 24/11.',
+      '6 entregas ainda não têm data de uso combinada.',
+    ])
+    clean(lines)
+    for (const day of ['2026-10-21', '2026-12-20', '2027-03-15', '2027-06-01']) {
+      const more = terralReasons(evaluate(t, day), t, day)
+      expect(more.length).toBeLessThanOrEqual(3)
+      clean(more)
+    }
+  })
+
+  it('synthetic: singular and plural, late first, decision, window, waiting pendências', () => {
+    const D = (code: string, name: string, o: Partial<PlanData['deliverables'][number]> = {}) => ({
+      code, name, front: 'Vendas', origin: 'escopo2' as const, built_date: null, in_use_start: '2026-12-01', in_use_end: '2026-12-01', in_use_text: null,
+      in_use_confirmed: false, built_at: null, in_use_at: null, target_ritual: null, terral_owner: null, published_flag: null, sort: 1, ...o,
+    })
+    const P = (code: string, due: string) => ({ code, kind: 'pendencia' as const, text: `Texto ${code}`, owner_public: 'Terral', due, due_text: null, effect: null, status: 'open' as const, visible_to_terral: true })
+    const base = {
+      deliverables: [D('3.1', 'Segmentação'), D('I2', 'Leitura de carteira'), D('3.8', 'Alertas', { in_use_start: '2026-11-05', in_use_end: '2026-11-05' })],
+      decisions: [{ code: 'D05', title: 'Dono do dado comercial', date: '2026-11-06', prepared_on: null, status: 'pending' as const, outcome: null, decided_by: null, decided_at: null }],
+      to_schedule: [{ id: '3.1-1', code: '3.1', what: 'Acordar a régua de tier', window_start: '2026-10-26', window_end: '2026-11-20', window_text: null, confirmed_date: null }],
+      open_items: [P('P-26', '2026-11-01')],
+      dependencies: [
+        { id: 'a', from_kind: 'open_item' as const, from_ref: 'P-26', to_code: '3.1', suggested: false },
+        { id: 'b', from_kind: 'decision' as const, from_ref: 'D05', to_code: 'I2', suggested: false },
+      ],
+    }
+    const lines = terralReasons(evaluate(base, TODAY), base, TODAY, { max: 9 })
+    expect(lines).toEqual([
+      '«Alertas»: o uso estava previsto para 05/11.',
+      // high (a late decision) before medium (the pendência holds «Segmentação», due in 21 days)
+      'A decisão «Dono do dado comercial» estava prevista para 06/11 e ainda não foi registrada. Ela libera «Leitura de carteira».',
+      'Uma pendência passou do prazo de 01/11. Ela segura a entrega «Segmentação».',
+      'Falta combinar a data de «Acordar a régua de tier». A janela fecha em 20/11.',
+      '«Segmentação»: a data de uso espera 1 pendência.',
+    ])
+    clean(lines)
+    expect(terralReasons(evaluate(base, TODAY), base, TODAY)).toHaveLength(3)
+
+    // two overdue, both holding: "2 delas seguram 2 entregas"; two late deliverables grouped
+    const two = { ...base, open_items: [P('P-26', '2026-11-01'), P('P-27', '2026-11-01')], dependencies: [...base.dependencies, { id: 'c', from_kind: 'open_item' as const, from_ref: 'P-27', to_code: 'I2', suggested: false }],
+      deliverables: base.deliverables.map((d) => d.code === '3.1' ? { ...d, in_use_start: '2026-11-02', in_use_end: '2026-11-02' } : d) }
+    const out = terralReasons(evaluate(two, TODAY), two, TODAY, { max: 9 })
+    expect(out[0]).toBe('2 entregas passaram da data prevista. A mais antiga é «Segmentação», prevista para 02/11.')
+    expect(out).toContain('2 pendências passaram do prazo de 01/11. 2 delas seguram 2 entregas.')
+    clean(out)
+  })
+
+  it('overdue pills: red only when the engine says high, amber otherwise, neutral when not yet due', () => {
+    expect(dueTone('2026-10-26', TODAY, true)?.tone).toBe('bad')
+    expect(dueTone('2026-10-26', TODAY)).toEqual({ tone: 'warn', label: 'venceu há 15 dias' })
+    expect(dueTone(TODAY, TODAY)).toEqual({ tone: 'mute', label: 'vence hoje' })
+    expect(dueTone('2026-11-13', TODAY)).toEqual({ tone: 'mute', label: 'vence em 3 dias' })
+    expect(dueTone('2026-12-13', TODAY)).toBeNull()
+  })
+
+  it('Visão geral paints only the urgent pendência red and shows no bare codes beside the list', async () => {
+    mount('/t')
+    await loaded()
+    fireEvent.click(screen.getByRole('button', { name: /Mostrar todas/ }))
+    const list = screen.getByRole('list', { name: 'Pendências da Terral' })
+    const red = list.querySelectorAll('.ui-pill.bad')
+    expect(red).toHaveLength(1) // P-01 holds «Lançamento interno», in use 23/11 (within 14 days)
+    expect(red[0].closest('li')).toHaveTextContent('Lançamento do projeto no bloco presencial')
+    expect(list.querySelectorAll('.ui-pill.warn').length).toBe(10)
+    expect(list.textContent).not.toMatch(/\bP-\d/)
+    const reasons = screen.getByRole('list', { name: 'Por quê' }).textContent ?? ''
+    expect(reasons).not.toMatch(/\b[PX]-\d/)
+    expect(reasons).toContain('«Lançamento interno»')
+  })
+
+  it('a past date in "Confirmar data de uso" warns but does not block', async () => {
+    mount('/t/entregas/3.7')
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar data de uso' }))
+    fireEvent.change(await screen.findByLabelText(/Data combinada/), { target: { value: '2026-11-01' } })
+    expect(screen.getByText(/Essa data já passou/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+    await waitFor(() => expect(m.rpcs).toEqual([{ fn: 'confirm_date', args: { p_kind: 'deliverable', p_ref: '3.7', p_date: '2026-11-01' } }]))
   })
 })

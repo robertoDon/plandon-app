@@ -8,6 +8,7 @@ import { useMutate } from '../lib/data'
 import { TERRAL_QUERY } from '../shared/entity'
 import { Sheet, useToast } from '../ui'
 import { Field } from '../don/fields'
+import { useToday } from '../shared/useToday'
 import { isIsoDate } from './model'
 
 // Terral's two writes, both RPCs (0002/0004): confirm_date(p_kind, p_ref, p_date) and
@@ -52,6 +53,7 @@ export function useConfirmDate() {
 
   async function confirm(t: DateTarget, date: ISODate) {
     setOpen(false)
+    await qc.cancelQueries({ queryKey: TERRAL_QUERY }) // a refetch landing now would wipe the optimistic date
     const old = qc.getQueryData<TerralData>(TERRAL_QUERY)
     const prev = t.kind === 'deliverable' ? old?.deliverables.find((d) => d.code === t.ref) : old?.to_schedule.find((s) => s.id === t.ref)
     qc.setQueryData<TerralData>(TERRAL_QUERY, (o) => patch(o, t, date))
@@ -77,6 +79,9 @@ export function useConfirmDate() {
 function DateForm({ target, onCancel, onSubmit }: { target: DateTarget; onCancel: () => void; onSubmit: (d: ISODate) => void }) {
   const [date, setDate] = useState(target.initial ?? '')
   const [error, setError] = useState<string | null>(null)
+  const today = useToday()
+  // a past date is allowed (confirm_date accepts it, e.g. to record what already happened), but say so
+  const past = isIsoDate(date) && date < today
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (!date) return setError('Escolha uma data.')
@@ -87,6 +92,7 @@ function DateForm({ target, onCancel, onSubmit }: { target: DateTarget; onCancel
     <form className="dform" onSubmit={submit} noValidate>
       <p className="t-form-lead">{target.title}</p>
       <DateField label="Data combinada" value={date} onChange={(v) => { setDate(v); setError(null) }} error={error}
+        warn={past ? 'Essa data já passou. Confirme só se foi isso mesmo que ficou combinado.' : undefined}
         hint={target.hint ?? 'A Equipe Don organiza a agenda a partir desta data.'} />
       <div className="dform-actions">
         <button type="button" className="dbtn" onClick={onCancel}>Cancelar</button>
@@ -97,8 +103,8 @@ function DateForm({ target, onCancel, onSubmit }: { target: DateTarget; onCancel
 }
 
 /** A required date input. `max` keeps the year to 4 digits (Chrome accepts 6 otherwise) and caps it. */
-function DateField({ label, value, onChange, error, hint, max = '9999-12-31' }: {
-  label: string; value: string; onChange: (v: string) => void; error?: string | null; hint?: string; max?: string
+function DateField({ label, value, onChange, error, warn, hint, max = '9999-12-31' }: {
+  label: string; value: string; onChange: (v: string) => void; error?: string | null; warn?: string; hint?: string; max?: string
 }) {
   const id = useId()
   const note = `${id}-note`
@@ -108,6 +114,7 @@ function DateField({ label, value, onChange, error, hint, max = '9999-12-31' }: 
       <input id={id} type="date" required min="2000-01-01" max={max} value={value} onChange={(e) => onChange(e.target.value)}
         aria-invalid={error ? true : undefined} aria-describedby={error || hint ? note : undefined} />
       {error ? <p id={note} className="dfield-error" role="alert">{error}</p> : hint ? <p id={note} className="dfield-hint">{hint}</p> : null}
+      {!error && warn && <p className="t-warn" role="status">{warn}</p>}
     </div>
   )
 }
