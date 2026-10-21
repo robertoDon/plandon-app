@@ -8,7 +8,7 @@ import { BlockForm } from '../../don/BlockForm'
 import { byOrder, cap, longDay, sumHours, useToday, weekday, weekOf, windowText } from '../../don/blocks'
 import { useEditor } from '../../don/fields'
 import { DonPage } from '../../don/Page'
-import { BLOCK_TYPES, personName, PROJECT, typeOf, weekCode } from '../../don/plan'
+import { BLOCK_TYPES, personName, projectWindow, typeOf, weekCode } from '../../don/plan'
 import '../../don/plan.css'
 
 type Mode = 'month' | 'week'
@@ -49,7 +49,7 @@ export default function Calendario() {
   return (
     <DonPage eyebrow="Plano" title="Calendário" state={state} sub={() => 'Os blocos de todos, por mês ou por semana. Toque num bloco para mudar a data, a pessoa ou as horas.'}>
       {(d) => {
-        const win = PROJECT
+        const win = projectWindow(d)
         const clamp = (x: ISODate) => (x < win.start ? win.start : x > win.end ? win.end : x)
         const day = clamp(sel ?? t)
         const select = (x: ISODate) => setSel(clamp(x))
@@ -68,10 +68,12 @@ export default function Calendario() {
 
         const onKey = (e: KeyboardEvent) => {
           const n = STEP[e.key]
-          if (!n) return
+          if (!n || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return
           e.preventDefault()
+          const next = clamp(addDays(day, n))
+          if (next === day) return
           moved.current = true
-          select(addDays(day, n))
+          setSel(next)
         }
         const open = (b: Block) => ed.show(b)
 

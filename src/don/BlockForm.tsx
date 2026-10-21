@@ -1,9 +1,8 @@
 import { useState, type FormEvent } from 'react'
-import { fmtDate } from '../domain/dates'
 import type { Block } from '../domain/types'
 import type { DonData } from '../lib/data'
 import { FormActions, GuardedField, parseAmount, SelectField, Switch, useTerralGuard } from './fields'
-import { BLOCK_TYPES, PROJECT, typeOf, useRowWrites, weekCode } from './plan'
+import { BLOCK_TYPES, dateError, projectWindow, typeOf, useRowWrites, weekCode } from './plan'
 
 const MAX_H = 24
 
@@ -23,7 +22,7 @@ export function BlockForm({ block, isNew, data, onDone }: { block: Block; isNew?
   const [busy, setBusy] = useState(false)
   const guard = useTerralGuard()
   const w = useRowWrites('blocks')
-  const win = PROJECT
+  const win = projectWindow(data)
   const types = BLOCK_TYPES.some((t) => t.type === block.type) ? BLOCK_TYPES : [...BLOCK_TYPES, typeOf(block.type)]
   const people = [...data.people].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
 
@@ -32,7 +31,10 @@ export function BlockForm({ block, isNew, data, onDone }: { block: Block; isNew?
     const errors: Record<string, string> = {}
     if (!description.trim()) errors.description = 'Escreva o que fazer neste bloco.'
     if (!date) errors.date = 'Escolha a data.'
-    else if (date < win.start || date > win.end) errors.date = `Use uma data do projeto, de ${fmtDate(win.start, true)} a ${fmtDate(win.end, true)}.`
+    else if (isNew || date !== block.date) {
+      const bad = dateError(date, win)
+      if (bad) errors.date = bad
+    }
     const h = parseAmount(hours, { min: 0, max: MAX_H })
     if ('error' in h) errors.hours = h.error
     else if (h.value === 0) errors.hours = 'Use mais que 0 h.'
@@ -69,7 +71,7 @@ export function BlockForm({ block, isNew, data, onDone }: { block: Block; isNew?
       <GuardedField guard={guard} name="description" label="O que fazer" multiline required value={description} onChange={setDescription} />
       <div className="dform-two">
         <GuardedField guard={guard} name="date" label="Data" type="date" required value={date} onChange={setDate}
-          hint={date && date >= win.start && date <= win.end ? `Semana ${weekCode(date)}` : undefined} />
+          hint={date && date >= win.start ? `Semana ${weekCode(date)}` : undefined} />
         <GuardedField guard={guard} name="hours" label="Horas" inputMode="decimal" required value={hours} onChange={setHours} hint="Decimais com vírgula, como 1,5." />
       </div>
       <div className="dform-two">

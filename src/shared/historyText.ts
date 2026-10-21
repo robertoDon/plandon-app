@@ -45,6 +45,10 @@ const short = (v: unknown, n = 80) => {
   const s = String(v).replace(/\s+/g, ' ').trim()
   return s.length > n ? `${s.slice(0, n - 1)}…` : s
 }
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
+const isId = (v: unknown) => typeof v === 'string' && new RegExp(`^${UUID.source}$`, 'i').test(v.trim())
+/** Safety net: a raw id never reaches the reader, whatever the field. */
+const noIds = (s: string) => s.replace(UUID, 'um registro')
 const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)
 /** "de" + article: "o bloco" → "do bloco", "a entrega" → "da entrega". */
 const of = (thing: string) => thing.replace(/^o /, 'do ').replace(/^a /, 'da ').replace(/^os /, 'dos ').replace(/^as /, 'das ')
@@ -64,6 +68,7 @@ function fieldClause(table: string, f: string, a: unknown, b: unknown, names: Re
   if (!def) return `alterou ${f} ${THING[table] ? of(THING[table]) : `de ${table}`}`
   const [label, kind] = def
   if (empty(b)) return `limpou ${label}`
+  if (isId(a) || isId(b)) return `mudou ${label}` // an id says nothing to a reader
   if (kind === 'text') return `mudou ${label} para "${short(b)}"`
   if (empty(a)) return `definiu ${label} como ${value(b, kind, names)}`
   return `mudou ${label} de ${value(a, kind, names)} para ${value(b, kind, names)}`
@@ -82,6 +87,10 @@ function updateClauses(table: string, o: Obj, n: Obj, names: Record<string, stri
   const who = String(n.display_name ?? o.display_name ?? 'a conta')
 
   if (has('week') && changed.includes('date')) take('week') // the week follows the date
+  if (has('task_id')) {
+    take('task_id')
+    out.push(n.task_id ? 'mudou a tarefa do bloco' : 'tirou o bloco da tarefa')
+  }
 
   if (has('done')) {
     take('done')
@@ -132,12 +141,12 @@ function updateClauses(table: string, o: Obj, n: Obj, names: Record<string, stri
   if (has('built_at')) {
     take('built_at')
     out.push(!o.built_at ? `marcou como construída em ${value(n.built_at, 'date', names)}` : !n.built_at ? 'desmarcou "Construído"'
-      : `mudou a data de construída de ${value(o.built_at, 'date', names)} para ${value(n.built_at, 'date', names)}`)
+      : `mudou a data de construção de ${value(o.built_at, 'date', names)} para ${value(n.built_at, 'date', names)}`)
   }
   if (has('in_use_at')) {
     take('in_use_at')
-    out.push(!o.in_use_at ? `marcou em uso em ${value(n.in_use_at, 'date', names)}` : !n.in_use_at ? 'desmarcou "Em uso"'
-      : `mudou a data de em uso de ${value(o.in_use_at, 'date', names)} para ${value(n.in_use_at, 'date', names)}`)
+    out.push(!o.in_use_at ? `marcou como em uso a partir de ${value(n.in_use_at, 'date', names)}` : !n.in_use_at ? 'desmarcou "Em uso"'
+      : `mudou a data de uso de ${value(o.in_use_at, 'date', names)} para ${value(n.in_use_at, 'date', names)}`)
   }
   if (has('in_use_confirmed')) {
     take('in_use_confirmed')
@@ -176,7 +185,9 @@ const join = (xs: string[]) => {
 const tidy = (xs: string[]) => xs.map((c, i) => (i > 0 && c.startsWith('mudou ') && xs[i - 1].startsWith('mudou ') ? c.slice(6) : c))
 
 /** "Beto mudou a data de 12/11 para 19/11". `names` maps user ids (and person ids) to display names. */
-export function historyText(row: HistoryRow, names: Record<string, string>): string {
+export const historyText = (row: HistoryRow, names: Record<string, string>): string => noIds(sentence(row, names))
+
+function sentence(row: HistoryRow, names: Record<string, string>): string {
   const who = row.user_id ? names[row.user_id] ?? 'Alguém' : 'Sistema'
   const table = row.table_name
   const thing = THING[table]
@@ -207,7 +218,9 @@ export function historyText(row: HistoryRow, names: Record<string, string>): str
 }
 
 /** What the row is about, for the global feed: "Bloco de 12/11 · 3.1 · Montar a base", "Entrega 3.1 · Segmentação". */
-export function historyWhere(row: HistoryRow): string {
+export const historyWhere = (row: HistoryRow): string => noIds(where(row)).replace(/( ·)? um registro$/, '')
+
+function where(row: HistoryRow): string {
   const r = { ...obj(row.old), ...obj(row.new) }
   const s = (v: unknown) => short(v, 60)
   switch (row.table_name) {

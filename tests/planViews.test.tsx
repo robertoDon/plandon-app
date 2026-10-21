@@ -200,6 +200,44 @@ describe('Entrega: header toggles', () => {
   })
 })
 
+describe('Entrega: milestone date', () => {
+  it('typing a year digit by digit writes once, on blur', async () => {
+    m.db.deliverable.find((x) => x.code === '3.1')!.built_at = '2026-11-10'
+    detail()
+    const input = await screen.findByLabelText('Data de construído')
+    for (const v of ['0002-11-10', '0020-11-10', '0202-11-10', '2026-11-12']) fireEvent.change(input, { target: { value: v } })
+    expect(writesOf('deliverable')).toHaveLength(0)
+    fireEvent.blur(input)
+    await waitFor(() => expect(writesOf('deliverable')).toHaveLength(1))
+    expect(writesOf('deliverable')[0]).toMatchObject({ values: { built_at: '2026-11-12' }, match: { code: '3.1' } })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(writesOf('deliverable')).toHaveLength(1)
+  })
+
+  it('a date outside the project shows an inline error and writes nothing; Enter commits a good one', async () => {
+    m.db.deliverable.find((x) => x.code === '3.1')!.in_use_at = '2026-12-10'
+    detail()
+    const input = await screen.findByLabelText('Data de em uso')
+    fireEvent.change(input, { target: { value: '0202-12-10' } })
+    fireEvent.blur(input)
+    expect(await screen.findByText(/Use uma data do projeto, de 26\/10\/2026/)).toBeInTheDocument()
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(writesOf('deliverable')).toHaveLength(0)
+    fireEvent.change(input, { target: { value: '2026-12-11' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(writesOf('deliverable')).toHaveLength(1))
+    expect(writesOf('deliverable')[0]).toMatchObject({ values: { in_use_at: '2026-12-11' } })
+  })
+
+  it('moving a single-day use start moves its end too', async () => {
+    detail()
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar' }))
+    type(within(sheet()).getByLabelText('Uso: início'), '2026-12-17')
+    fireEvent.click(within(sheet()).getByRole('button', { name: 'Salvar' }))
+    await waitFor(() => expect(writesOf('deliverable')[0]).toMatchObject({ values: { in_use_start: '2026-12-17', in_use_end: '2026-12-17' } }))
+  })
+})
+
 describe('Entrega: published note', () => {
   it('the guard blocks "David" inline, keeps focus on the note and writes nothing', async () => {
     detail()
@@ -289,6 +327,34 @@ describe('Entrega: tasks and blocks', () => {
     expect(await screen.findByRole('button', { name: /Editar bloco de 12\/11: Revisar o modelo/ })).toBeInTheDocument()
   })
 
+  it('a failed task delete puts its blocks back', async () => {
+    m.failOn = ['task']
+    detail()
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar tarefa: Montar o modelo' }))
+    fireEvent.click(within(sheet()).getByRole('button', { name: 'Apagar tarefa e seus blocos' }))
+    expect(await screen.findByText('Não salvou. Tente de novo.')).toBeInTheDocument()
+    await waitFor(() => expect(m.db.block.map((b) => b.id).sort()).toEqual(['b1', 'b2', 'b3']))
+    expect(m.writes.map((w) => `${w.table} ${w.op}`)).toEqual(['block delete', 'task delete', 'block insert'])
+    expect(m.db.task.map((t) => t.id)).toEqual(['t1'])
+    expect(screen.queryByText(/Tarefa e 2 blocos apagados/)).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: /Ver 2 blocos/ }))
+  })
+
+  it('an unchanged date outside the window does not block a save; the window end follows the latest deliverable date', async () => {
+    m.db.block.push(block('old', '2026-10-20', 1, { description: 'Bloco antigo' }))
+    m.db.deliverable.find((x) => x.code === '3.2')!.in_use_end = '2027-06-15'
+    detail()
+    fireEvent.click(await screen.findByRole('button', { name: /Ver 3 blocos/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Editar bloco de 20\/10: Bloco antigo/ }))
+    type(within(sheet()).getByLabelText(/^Horas/), '2')
+    fireEvent.click(within(sheet()).getByRole('button', { name: 'Salvar' }))
+    await waitFor(() => expect(writesOf('block')[0]).toMatchObject({ values: { hours: 2 }, match: { id: 'old' } }))
+    fireEvent.click(screen.getByRole('button', { name: /Editar bloco de 12\/11: Revisar o modelo/ }))
+    type(within(sheet()).getByLabelText(/^Data/), '2027-06-10')
+    fireEvent.click(within(sheet()).getByRole('button', { name: 'Salvar' }))
+    await waitFor(() => expect(writesOf('block')[1]).toMatchObject({ values: { date: '2027-06-10' }, match: { id: 'b2' } }))
+  })
+
   it('deleting a task deletes its blocks; Desfazer brings both back', async () => {
     detail()
     fireEvent.click(await screen.findByRole('button', { name: 'Editar tarefa: Montar o modelo' }))
@@ -333,6 +399,16 @@ describe('Entrega: dependencies', () => {
     }))
   })
 
+  it('refuses a transitive cycle: 3.1 → 3.2 → 3.10, then "3.1 depends on 3.10"', async () => {
+    m.db.dependency.push({ id: 'dep3', from_kind: 'deliverable', from_ref: '3.2', to_code: '3.10', suggested: false })
+    detail()
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar' }))
+    fireEvent.change(within(sheet()).getByLabelText('3.1 depende de'), { target: { value: '3.10' } })
+    fireEvent.click(within(sheet()).getByRole('button', { name: 'Adicionar' }))
+    expect(await within(sheet()).findByText('Isso criaria um ciclo: 3.10 já depende de 3.1.')).toBeInTheDocument()
+    expect(writesOf('dependency')).toHaveLength(0)
+  })
+
   it('Anexo A rows of the deliverable are listed and editable', async () => {
     detail()
     fireEvent.click(await screen.findByRole('button', { name: 'Editar campo Ação padrão' }))
@@ -365,6 +441,8 @@ describe('Calendário', () => {
     expect(today).toHaveAttribute('aria-current', 'date')
     fireEvent.keyDown(today, { key: 'ArrowRight' })
     await waitFor(() => expect(screen.getByRole('button', { name: /quarta, 11\/11/ })).toHaveFocus())
+    fireEvent.keyDown(screen.getByRole('button', { name: /quarta, 11\/11/ }), { key: 'ArrowRight', altKey: true })
+    expect(screen.getByRole('button', { name: /quarta, 11\/11/ })).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(screen.getByRole('radio', { name: 'Semana' }))
     expect(screen.getByRole('heading', { name: '09/11 a 15/11 · S03' })).toBeInTheDocument()
     expect(screen.getByText(/Acima do limite: David/)).toBeInTheDocument()

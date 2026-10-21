@@ -111,7 +111,7 @@ export function parseAmount(text: string, { min = 0, max, unit = 'h' }: { min?: 
   if (/^\d+\.\d{3}$/.test(t)) return { error: 'Escreva sem ponto de milhar. Decimais com vírgula, como 7,5.' }
   const n = /^\d+([.,]\d+)?$/.test(t) ? Number(t.replace(',', '.')) : NaN
   if (Number.isNaN(n)) return { error: 'Digite um número, como 7,5.' }
-  if (n < min || n > max) return { error: `Use um valor de ${String(min).replace('.', ',')} a ${max} ${unit}.` }
+  if (n < min || n > max) return { error: `Use um valor de ${String(min).replace('.', ',')} a ${max}${unit ? ` ${unit}` : ''}.` }
   return { value: n }
 }
 

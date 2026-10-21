@@ -45,8 +45,9 @@ describe('historyText', () => {
     const t = (n: Record<string, unknown>, o: Record<string, unknown> = d) => historyText(row({ table_name: 'deliverable', old: o, new: { ...o, ...n } }), names)
     expect(t({ built_at: '2026-11-20' })).toBe('Beto marcou como construída em 20/11')
     expect(t({ built_at: null }, { ...d, built_at: '2026-11-20' })).toBe('Beto desmarcou "Construído"')
-    expect(t({ built_at: '2026-11-21' }, { ...d, built_at: '2026-11-20' })).toBe('Beto mudou a data de construída de 20/11 para 21/11')
-    expect(t({ in_use_at: '2026-12-02' })).toBe('Beto marcou em uso em 02/12')
+    expect(t({ built_at: '2026-11-21' }, { ...d, built_at: '2026-11-20' })).toBe('Beto mudou a data de construção de 20/11 para 21/11')
+    expect(t({ in_use_at: '2026-12-02' })).toBe('Beto marcou como em uso a partir de 02/12')
+    expect(t({ in_use_at: '2026-12-03' }, { ...d, in_use_at: '2026-12-02' })).toBe('Beto mudou a data de uso de 02/12 para 03/12')
     expect(t({ in_use_at: null }, { ...d, in_use_at: '2026-12-02' })).toBe('Beto desmarcou "Em uso"')
     expect(t({ published_flag: 'Base atrasada' })).toBe('Beto publicou atenção para a Terral: "Base atrasada"')
     expect(t({ published_flag: null }, { ...d, published_flag: 'x' })).toBe('Beto retirou a atenção publicada')
@@ -104,6 +105,21 @@ describe('historyText', () => {
     const many = { a: 1, date: '2026-11-12', hours: 1, person_id: 'david', description: 'x', type: 'Tarefa' }
     expect(historyText(row({ old: many, new: { ...many, date: '2026-11-13', hours: 2, person_id: 'lucas', description: 'y', type: 'Rito' } }), names))
       .toBe('Beto mudou a data de 12/11 para 13/11, as horas de 1 h para 2 h, a pessoa de David para Lucas e mais 2 alterações')
+  })
+
+  it('never shows a raw id', () => {
+    const id1 = '9b7e9ebe-ba7b-597c-a564-9cb3fa41e6ad'
+    const id2 = '4247381e-fd97-59a0-8a6a-938f86d297ea'
+    expect(historyText(row({ old: { task_id: id1 }, new: { task_id: id2 } }), names)).toBe('Beto mudou a tarefa do bloco')
+    expect(historyText(row({ old: { task_id: id1 }, new: { task_id: null } }), names)).toBe('Beto tirou o bloco da tarefa')
+    expect(historyText(row({ old: { code: id1 }, new: { code: id2 } }), names)).toBe('Beto mudou o código')
+    expect(historyText(row({ table_name: 'manual_risk', old: { severity: 'low' }, new: { severity: id2 } }), names)).toBe('Beto mudou a gravidade')
+    // any field, any table, even inside free text: the id is replaced
+    expect(historyText(row({ table_name: 'mystery', action: 'INSERT', new: null }), { u1: id1 })).not.toMatch(/[0-9a-f]{8}-/)
+    expect(historyText(row({ old: { description: 'a' }, new: { description: `ver ${id1}` } }), names)).toBe('Beto mudou a descrição para "ver um registro"')
+    expect(historyWhere(row({ table_name: 'mystery', row_ref: id1 }))).toBe('mystery')
+    expect(historyWhere(row({ table_name: 'profiles', row_ref: id1 }))).toBe('Acesso')
+    expect(historyWhere(row({ table_name: 'manual_risk', row_ref: id1 }))).toBe('Risco')
   })
 
   it('historyWhere names the thing that changed', () => {

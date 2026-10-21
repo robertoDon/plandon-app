@@ -209,3 +209,9 @@
 @media (prefers-contrast: more) {
   .cal-day, .cal-blk { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); }
 }
+
+/* Person filter: segments as wide as their names ("Diretoria" never truncates); scrolls sideways if a phone is narrower. */
+.cal-filters .ui-seg { grid-auto-columns: max-content; overflow-x: auto; scrollbar-width: none; }
+.cal-filters .ui-seg::-webkit-scrollbar { display: none; }
+.dlv-date-box { display: flex; flex-direction: column; gap: 4px; }
+.dlv-date-box .dfield-error { max-width: 320px; }

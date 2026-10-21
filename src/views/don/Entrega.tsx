@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { fmtDate, fmtHours, type ISODate } from '../../domain/dates'
 import { evaluate } from '../../domain/risk'
@@ -9,7 +9,7 @@ import { BlockForm } from '../../don/BlockForm'
 import { byOrder, useToday, useToggleBlock } from '../../don/blocks'
 import { DeliverableForm, DependencyForm, depLabel, TaskForm, taskStatusLabel, TraceForm } from '../../don/DeliverableForms'
 import { FormActions, GuardedField, Switch, useEditor, useTerralGuard } from '../../don/fields'
-import { HEALTH, newId, nextOf, personName, progressOf, PROJECT, typeOf, useRowWrites, weekCode } from '../../don/plan'
+import { dateError, HEALTH, newId, nextOf, personName, progressOf, projectWindow, typeOf, useRowWrites, weekCode } from '../../don/plan'
 import { Comments } from '../../shared/Comments'
 import { Evidence } from '../../shared/Evidence'
 import { HistoryList } from '../../shared/HistoryList'
@@ -48,6 +48,7 @@ export default function Entrega() {
 function Detail({ d, dl, t, health }: { d: DonData; dl: Deliverable; t: ISODate; health: (typeof HEALTH)[keyof typeof HEALTH] }) {
   const edit = useEditor<true>()
   const p = progressOf(dl.code, d.blocks)
+  const win = projectWindow(d)
   return (
     <>
       <Card title="Situação" action={<button type="button" onClick={() => edit.show(true)}>Editar</button>}>
@@ -65,8 +66,8 @@ function Detail({ d, dl, t, health }: { d: DonData; dl: Deliverable; t: ISODate;
           <div><dt>Dono do uso na Terral</dt><dd>{dl.terral_owner ?? '—'}</dd></div>
           <div><dt>Rito de destino</dt><dd>{dl.target_ritual ?? '—'}</dd></div>
         </dl>
-        <Milestone dl={dl} field="built_at" label="Construído" done="marcada como construída" hint="A Don aceitou a entrega como construída." t={t} />
-        <Milestone dl={dl} field="in_use_at" label="Em uso" done="marcada em uso" hint="A Terral já usa a entrega no dia a dia." t={t} />
+        <Milestone dl={dl} field="built_at" label="Construído" done="marcada como construída" hint="A Don aceitou a entrega como construída." t={t} win={win} />
+        <Milestone dl={dl} field="in_use_at" label="Em uso" done="marcada em uso" hint="A Terral já usa a entrega no dia a dia." t={t} win={win} />
       </Card>
       <PublishedNote dl={dl} />
       <Tasks d={d} dl={dl} t={t} />
@@ -81,7 +82,9 @@ function Detail({ d, dl, t, health }: { d: DonData; dl: Deliverable; t: ISODate;
 }
 
 /** "Construído" / "Em uso": a switch (today when turned on) and its date. Optimistic, with "Desfazer". */
-function Milestone({ dl, field, label, done, hint, t }: { dl: Deliverable; field: 'built_at' | 'in_use_at'; label: string; done: string; hint: string; t: ISODate }) {
+function Milestone({ dl, field, label, done, hint, t, win }: {
+  dl: Deliverable; field: 'built_at' | 'in_use_at'; label: string; done: string; hint: string; t: ISODate; win: { start: ISODate; end: ISODate }
+}) {
   const w = useRowWrites('deliverables', 'code')
   const at = dl[field]
   const save = (v: ISODate | null, msg: string) => void w.update(dl.code, { [field]: v }, { [field]: at }, msg).catch(() => {})
@@ -89,12 +92,39 @@ function Milestone({ dl, field, label, done, hint, t }: { dl: Deliverable; field
     <div className="dlv-ms">
       <Switch checked={!!at} label={label} hint={at ? `Desde ${fmtDate(at, true)}.` : hint}
         onChange={(on) => save(on ? t : null, on ? `${dl.code} ${done}.` : `"${label}" desmarcado.`)} />
-      {at && (
-        <label className="dlv-date">
-          <span>Data de {label.toLowerCase()}</span>
-          <input type="date" value={at} onChange={(e) => e.target.value && e.target.value !== at && save(e.target.value, 'Data salva.')} />
-        </label>
-      )}
+      {at && <MilestoneDate key={at} label={`Data de ${label.toLowerCase()}`} value={at} win={win} onCommit={(v) => save(v, 'Data salva.')} />}
+    </div>
+  )
+}
+
+/**
+ * A date that saves once: on blur or Enter, only when it is a real date inside the project window and changed. Typing a year
+ * digit by digit (0002, 0020, 0202, 2026) writes nothing until then. Escape puts the saved date back. Remounted (key) when the
+ * saved date moves (undo, Realtime).
+ */
+function MilestoneDate({ label, value, win, onCommit }: { label: string; value: ISODate; win: { start: ISODate; end: ISODate }; onCommit: (v: ISODate) => void }) {
+  const [text, setText] = useState(value)
+  const [error, setError] = useState<string | null>(null)
+  const id = useId()
+  const commit = () => {
+    if (text === value) return setError(null)
+    const bad = dateError(text, win)
+    if (bad) return setError(bad)
+    setError(null)
+    onCommit(text)
+  }
+  return (
+    <div className="dlv-date-box">
+      <label className="dlv-date" htmlFor={id}>
+        <span>{label}</span>
+        <input id={id} type="date" value={text} aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-e` : undefined}
+          onChange={(e) => { setText(e.target.value); setError(null) }} onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commit() }
+            if (e.key === 'Escape') { setText(value); setError(null) }
+          }} />
+      </label>
+      {error && <p id={`${id}-e`} className="dfield-error" role="alert">{error}</p>}
     </div>
   )
 }
@@ -160,7 +190,8 @@ function Tasks({ d, dl, t }: { d: DonData; dl: Deliverable; t: ISODate }) {
     description: '', person_id: null, status: 'not_started',
   })
   const newBlock = (task: Task | null): Block => {
-    const date = t < PROJECT.start ? PROJECT.start : t > PROJECT.end ? PROJECT.end : t
+    const win = projectWindow(d)
+    const date = t < win.start ? win.start : t > win.end ? win.end : t
     return {
       id: newId(), date, week: weekCode(date), type: task?.kind === 'with_terral' ? 'Tarefa com a Terral' : 'Tarefa', front: dl.front, code: dl.code,
       description: task?.description ?? '', person_id: task?.person_id ?? null, hours: 1, due: task?.due ?? null, task_id: task?.id ?? null, done: false, done_at: null,

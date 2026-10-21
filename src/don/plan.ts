@@ -12,7 +12,26 @@ type Key = keyof PlanData
 /** Phase 2 (spec §1): 26/10/2026 to 30/04/2027. Week S01 starts on Monday 26/10 (the sheet's "Sem." column counts the same). */
 export const PROJECT_START: ISODate = '2026-10-26'
 export const PROJECT_END: ISODate = '2027-04-30'
-export const PROJECT = { start: PROJECT_START, end: PROJECT_END }
+
+/**
+ * Dates Don may pick: from 26/10/2026 (hard: the week count starts there) to the latest of 30/04/2027, any block date and any
+ * deliverable date (soft: a plan that slips past April must stay editable). Forms validate only a date that changed, so a row
+ * already outside the window can still be saved.
+ */
+export function projectWindow(d: Pick<DonData, 'blocks' | 'deliverables'>): { start: ISODate; end: ISODate } {
+  let end = PROJECT_END
+  for (const b of d.blocks) if (b.date > end) end = b.date
+  for (const x of d.deliverables)
+    for (const v of [x.built_date, x.in_use_start, x.in_use_end, x.built_at, x.in_use_at]) if (v && v > end) end = v
+  return { start: PROJECT_START, end }
+}
+const ISO = /^\d{4}-\d{2}-\d{2}$/
+/** pt-BR error for a picked date, or null when it is a real date inside the window. */
+export function dateError(v: string, win: { start: ISODate; end: ISODate }): string | null {
+  if (!ISO.test(v) || Number.isNaN(Date.parse(`${v}T00:00:00Z`))) return 'Escolha uma data válida.'
+  if (v < win.start || v > win.end) return `Use uma data do projeto, de ${fmtDate(win.start, true)} a ${fmtDate(win.end, true)}.`
+  return null
+}
 export const weekCode = (d: ISODate) => `S${String(Math.floor(diffDays(d, PROJECT_START) / 7) + 1).padStart(2, '0')}`
 
 const matches = (r: Row, m: Row) => Object.entries(m).every(([k, v]) => r[k] === v)

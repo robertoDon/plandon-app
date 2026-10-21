@@ -107,11 +107,14 @@ export function DeliverableForm({ d, onDone }: { d: Deliverable; onDone: () => v
     e.preventDefault()
     const extra: Record<string, string> = {}
     if (!name.trim()) extra.name = 'Escreva o nome da entrega.'
-    if (start && end && end < start) extra.in_use_end = 'O fim do uso não pode vir antes do início.'
+    // A single-day use (end = start) whose end was left alone moves with its start.
+    const single = d.in_use_start !== null && d.in_use_end === d.in_use_start && end === (d.in_use_end ?? '')
+    const endNext = single ? start : end
+    if (start && endNext && endNext < start) extra.in_use_end = 'O fim do uso não pode vir antes do início.'
     if (!guard.check({ name, terral_owner: owner, target_ritual: ritual }, extra)) return
     const row = {
       name: name.trim(), terral_owner: owner.trim() || null, target_ritual: ritual.trim() || null,
-      built_date: built || null, in_use_start: start || null, in_use_end: end || (start || null),
+      built_date: built || null, in_use_start: start || null, in_use_end: endNext || (start || null),
     }
     const [change, before] = diff(row, d)
     setBusy(true)
