@@ -102,4 +102,5 @@ export function useSession(): SessionState {
   return s
 }
 
-export const signOut = () => supabase.auth.signOut()
+// local: leaving on one device must not end the sessions on the others (global is the supabase-js default)
+export const signOut = () => supabase.auth.signOut({ scope: 'local' })
