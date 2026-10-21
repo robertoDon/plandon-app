@@ -133,7 +133,7 @@ export function dueTone(due: ISODate | null, today: ISODate, high = false): { to
 }
 
 const RANK = { high: 0, medium: 1, low: 2 } as const
-const q = (s: string) => `«${s}»`
+const q = (s: string) => `“${s}”`
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
 
 /**

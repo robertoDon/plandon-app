@@ -369,7 +369,7 @@ describe('executive reasons', () => {
     const lines = terralReasons(evaluate(t, TODAY), t, TODAY)
     expect(lines).toEqual([
       '11 pendências passaram do prazo de 26/10.', // their links to deliverables are all suggested: none holds one yet
-      'Falta combinar a data de «Alinhar a mensagem com a diretoria». A janela fecha em 24/11.',
+      'Falta combinar a data de “Alinhar a mensagem com a diretoria”. A janela fecha em 24/11.',
       '6 entregas ainda não têm data de uso combinada.',
     ])
     clean(lines)
@@ -398,12 +398,12 @@ describe('executive reasons', () => {
     }
     const lines = terralReasons(evaluate(base, TODAY), base, TODAY, { max: 9 })
     expect(lines).toEqual([
-      '«Alertas»: o uso estava previsto para 05/11.',
-      // high (a late decision) before medium (the pendência holds «Segmentação», due in 21 days)
-      'A decisão «Dono do dado comercial» estava prevista para 06/11 e ainda não foi registrada. Ela libera «Leitura de carteira».',
-      'Uma pendência passou do prazo de 01/11. Ela segura a entrega «Segmentação».',
-      'Falta combinar a data de «Acordar a régua de tier». A janela fecha em 20/11.',
-      '«Segmentação»: a data de uso espera 1 pendência.',
+      '“Alertas”: o uso estava previsto para 05/11.',
+      // high (a late decision) before medium (the pendência holds “Segmentação”, due in 21 days)
+      'A decisão “Dono do dado comercial” estava prevista para 06/11 e ainda não foi registrada. Ela libera “Leitura de carteira”.',
+      'Uma pendência passou do prazo de 01/11. Ela segura a entrega “Segmentação”.',
+      'Falta combinar a data de “Acordar a régua de tier”. A janela fecha em 20/11.',
+      '“Segmentação”: a data de uso espera 1 pendência.',
     ])
     clean(lines)
     expect(terralReasons(evaluate(base, TODAY), base, TODAY)).toHaveLength(3)
@@ -412,7 +412,7 @@ describe('executive reasons', () => {
     const two = { ...base, open_items: [P('P-26', '2026-11-01'), P('P-27', '2026-11-01')], dependencies: [...base.dependencies, { id: 'c', from_kind: 'open_item' as const, from_ref: 'P-27', to_code: 'I2', suggested: false }],
       deliverables: base.deliverables.map((d) => d.code === '3.1' ? { ...d, in_use_start: '2026-11-02', in_use_end: '2026-11-02' } : d) }
     const out = terralReasons(evaluate(two, TODAY), two, TODAY, { max: 9 })
-    expect(out[0]).toBe('2 entregas passaram da data prevista. A mais antiga é «Segmentação», prevista para 02/11.')
+    expect(out[0]).toBe('2 entregas passaram da data prevista. A mais antiga é “Segmentação”, prevista para 02/11.')
     expect(out).toContain('2 pendências passaram do prazo de 01/11. 2 delas seguram 2 entregas.')
     clean(out)
   })
@@ -441,13 +441,13 @@ describe('executive reasons', () => {
     fireEvent.click(screen.getByRole('button', { name: /Mostrar todas/ }))
     const list = screen.getByRole('list', { name: 'Pendências da Terral' })
     const red = list.querySelectorAll('.ui-pill.bad')
-    expect(red).toHaveLength(1) // P-01 holds «Lançamento interno», in use 23/11 (within 14 days)
+    expect(red).toHaveLength(1) // P-01 holds “Lançamento interno”, in use 23/11 (within 14 days)
     expect(red[0].closest('li')).toHaveTextContent('Lançamento do projeto no bloco presencial')
     expect(list.querySelectorAll('.ui-pill.warn').length).toBe(10)
     expect(list.textContent).not.toMatch(/\bP-\d/)
     const reasons = screen.getByRole('list', { name: 'Por quê' }).textContent ?? ''
     expect(reasons).not.toMatch(/\b[PX]-\d/)
-    expect(reasons).toContain('«Lançamento interno»')
+    expect(reasons).toContain('“Lançamento interno”')
   })
 
   it('a past date in "Confirmar data de uso" warns but does not block', async () => {
