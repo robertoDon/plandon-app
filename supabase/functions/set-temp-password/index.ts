@@ -3,13 +3,19 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { handle } from './handler.ts'
 
-const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+// New-style projects inject SUPABASE_SECRET_KEYS ({"default": "sb_secret_..."}); older ones only the legacy key.
+const secretKey = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}').default ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const admin = createClient(Deno.env.get('SUPABASE_URL')!, secretKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 })
 
 Deno.serve((req) =>
   handle(req, {
-    userIdFromJwt: async (jwt) => (await admin.auth.getUser(jwt)).data.user?.id ?? null,
+    userIdFromJwt: async (jwt) => {
+      const { data, error } = await admin.auth.getUser(jwt)
+      if (error) console.error('getUser:', error.message)
+      return data.user?.id ?? null
+    },
     profile: async (id) =>
       (await admin.from('profiles').select('role, status, must_change_password').eq('id', id).maybeSingle()).data,
     // through 0011's set_must_change_password, so the history row names the Don who asked
