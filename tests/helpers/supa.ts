@@ -16,7 +16,7 @@ export const admin = (): SupabaseClient => createClient(url, serviceKey, opts)
 export const anon = (): SupabaseClient => createClient(url, anonKey, opts)
 
 const PASSWORD = 'rls-test-password-1'
-export const EMAILS = { don: 'don@x.test', terral: 'terral@x.test', pending: 'pending@x.test', blocked: 'blocked@x.test' } as const
+export const EMAILS = { don: 'don@x.test', terral: 'terral@x.test', terral2: 'terral2@x.test', pending: 'pending@x.test', blocked: 'blocked@x.test' } as const
 /** Created by the test through public signup. */
 export const SIGNUP_EMAIL = 'signup@x.test'
 type Who = keyof typeof EMAILS
@@ -94,7 +94,8 @@ export async function cleanup() {
   await del('deliverable', 'code', [K.deliverable])
   await del('person', 'id', [K.person])
   for (const u of users) ok(await a.auth.admin.deleteUser(u.id), 'deleteUser')
-  ok(await a.from('history').delete().in('row_ref', [...Object.values(K), ...Object.values(ID), ...extraRefs]), 'cleanup history')
+  const refs = [...Object.values(K), ...Object.values(ID), ...extraRefs, ...users.map((u) => u.id)] // user id = profiles row_ref
+  ok(await a.from('history').delete().in('row_ref', refs), 'cleanup history')
 }
 
 async function signIn(email: string): Promise<SupabaseClient> {
@@ -117,6 +118,7 @@ export async function setup(): Promise<Fixture> {
   const profile = (id: string, p: object) => a.from('profiles').update(p).eq('id', id)
   ok(await profile(ids.don, { role: 'don', status: 'approved' }), 'profile don')
   ok(await profile(ids.terral, { role: 'terral', status: 'approved' }), 'profile terral')
+  ok(await profile(ids.terral2, { role: 'terral', status: 'approved' }), 'profile terral2')
   ok(await profile(ids.blocked, { role: 'terral', status: 'blocked' }), 'profile blocked')
   // pending keeps the signup trigger defaults
 
@@ -138,7 +140,7 @@ export async function setup(): Promise<Fixture> {
   await ins('task', { id: ID.task, sort: 1, due: '2026-11-10', kind: 'task', front: 'Gestão', code: K.deliverable, description: 'Tarefa teste', person_id: K.person, status: 'not_started' })
   await ins('block', { id: ID.block, date: '2026-11-03', week: 'S03', type: 'Rito', front: 'Gestão', code: null, description: 'Rito teste', person_id: K.person, hours: 2, due: null, task_id: ID.task })
   await ins('ritual', { id: ID.ritual, name: 'Rito teste', cadence: 'semanal', first_date: '2026-11-03', last_date: '2026-12-15', sort: 1 })
-  await ins('ritual_occurrence', { id: ID.occurrence, ritual_id: ID.ritual, date: '2026-11-03', week: 'S03', block_id: ID.block })
+  await ins('ritual_occurrence', { id: ID.occurrence, ritual_id: ID.ritual, date: '2026-11-03', week: 'S03' })
   await ins('goal', { id: ID.goal, sort: 1, level: 'Grupo', position: 'Norte', metric: 'Receita', baseline: null, state: 'definida', target: null })
   await ins('traceability', { id: ID.trace, annex_tab: 'A1', field: 'campo', col: 'B', n: 1, deliverable_code: K.deliverable, task_description: 'Tarefa teste', filled_by: 'Beto' })
   await ins('dependency', [
@@ -148,22 +150,25 @@ export async function setup(): Promise<Fixture> {
   ])
   await ins('manual_risk', { id: ID.risk, title: 'Risco teste', severity: 'high', links: [K.deliverable], person_id: K.person, status: 'open', note: 'interno', created_by: ids.don })
   const comment = (id: string, entity_kind: string, entity_ref: string, visible_to_terral: boolean) =>
-    ({ id, entity_kind, entity_ref, author_id: ids.don, author_role: 'don', body: `comentário ${id}`, visible_to_terral })
+    ({ id, entity_kind, entity_ref, author_role: 'don', author_name: 'Beto', body: `comentário ${id}`, visible_to_terral }) // name is overwritten
   await ins('comment', [
     comment(ID.commentVisible, 'deliverable', K.deliverable, true),
     comment(ID.commentHidden, 'deliverable', K.deliverable, false),
     comment(ID.commentOnHiddenItem, 'open_item', K.openHidden, true), // flag says visible, target is Don-only
     comment(ID.commentOnTask, 'task', ID.task, true), // tasks are Don-only
   ])
+  // service-role inserts have no auth.uid(): attribution rows are written by hand here, by the trigger in the app
+  await ins('comment_author', [ID.commentVisible, ID.commentHidden, ID.commentOnHiddenItem, ID.commentOnTask].map((comment_id) => ({ comment_id, author_id: ids.don })))
   const pdf = new Blob(['%PDF-1.4 rls'], { type: 'application/pdf' })
   for (const p of Object.values(PATH)) ok(await a.storage.from('evidence').upload(p, pdf, { contentType: 'application/pdf' }), `upload ${p}`)
   const evidence = (id: string, entity_kind: string, entity_ref: string, storage_path: string, visible_to_terral: boolean) =>
-    ({ id, entity_kind, entity_ref, storage_path, file_name: 'e.pdf', uploader_id: ids.don, uploader_role: 'don', visible_to_terral })
+    ({ id, entity_kind, entity_ref, storage_path, file_name: 'e.pdf', uploader_role: 'don', visible_to_terral })
   await ins('evidence', [
     evidence(ID.evidenceVisible, 'deliverable', K.deliverable, PATH.visible, true),
     evidence(ID.evidenceHidden, 'deliverable', K.deliverable, PATH.hidden, false),
     evidence(ID.evidenceOnHiddenItem, 'open_item', K.openHidden, PATH.onHiddenItem, true),
   ])
+  await ins('evidence_uploader', [ID.evidenceVisible, ID.evidenceHidden, ID.evidenceOnHiddenItem].map((evidence_id) => ({ evidence_id, uploader_id: ids.don })))
 
   const clients = {} as Record<Who, SupabaseClient>
   for (const who of Object.keys(EMAILS) as Who[]) clients[who] = await signIn(EMAILS[who])

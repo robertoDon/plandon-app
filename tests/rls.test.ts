@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { admin, anon, cleanup, extraRefs, ID, K, localStack, PATH, setup, SIGNUP_EMAIL, TERRAL_FILE, type Fixture } from './helpers/supa'
 
-const DON_ONLY = ['person', 'task', 'block', 'to_schedule_plan', 'open_item_internal', 'traceability', 'manual_risk', 'history']
+const DON_ONLY = ['person', 'task', 'block', 'to_schedule_plan', 'open_item_internal', 'traceability', 'manual_risk', 'history', 'comment_author', 'evidence_uploader']
 const SHARED = ['deliverable', 'ritual', 'ritual_occurrence', 'decision', 'to_schedule', 'open_item', 'goal', 'dependency', 'comment', 'evidence']
 const ALL = [...DON_ONLY, ...SHARED, 'profiles']
 
@@ -29,10 +29,12 @@ const ROW: Record<string, [string, string, Record<string, unknown>]> = {
   dependency: ['id', ID.depDecision, { suggested: true }],
   comment: ['id', ID.commentVisible, { body: 'x' }],
   evidence: ['id', ID.evidenceVisible, { file_name: 'x' }],
+  comment_author: ['comment_id', ID.commentVisible, { author_id: randomUUID() }],
+  evidence_uploader: ['evidence_id', ID.evidenceVisible, { uploader_id: randomUUID() }],
 }
 const isUuid = (s: string) => /^[0-9a-f-]{36}$/.test(s)
 /** Columns that would carry Don hours, Don people or internal owners. */
-const INTERNAL_COLUMN = /(^|_)(hours?|load|person|lead|conducted)(_|$)|_h$|owner_raw/
+const INTERNAL_COLUMN = /(^|_)(hours?|load|person|lead|conducted|block)(_|$)|_h$|owner_raw|(author|uploader)_id$/
 
 const rows = async (c: SupabaseClient, table: string) => {
   const r = await c.from(table).select('*')
@@ -41,12 +43,12 @@ const rows = async (c: SupabaseClient, table: string) => {
 
 describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
   let f: Fixture
-  let don: SupabaseClient, terral: SupabaseClient, pending: SupabaseClient, blocked: SupabaseClient
+  let don: SupabaseClient, terral: SupabaseClient, terral2: SupabaseClient, pending: SupabaseClient, blocked: SupabaseClient
   const snapshot: Record<string, unknown> = {}
 
   beforeAll(async () => {
     f = await setup()
-    ;({ don, terral, pending, blocked } = f.clients)
+    ;({ don, terral, terral2, pending, blocked } = f.clients)
     for (const [t, [pk, key]] of Object.entries(ROW)) snapshot[t] = (await don.from(t).select('*').eq(pk, key).single()).data
   }, 60_000)
   afterAll(async () => {
@@ -103,21 +105,45 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     expect((await terral.from('deliverable').update({ name: 'x' }).eq('code', K.deliverable).select()).data).toEqual([])
   })
 
-  it('Terral comments only as itself, only on Terral-visible entities', async () => {
-    const mine = { id: randomUUID(), entity_kind: 'deliverable', entity_ref: K.deliverable, author_id: f.ids.terral, author_role: 'terral', body: 'ok', visible_to_terral: true }
-    extraRefs.push(mine.id)
-    expect((await terral.from('comment').insert(mine)).error).toBeNull()
-    expect((await terral.from('comment').select('id').eq('id', mine.id)).data).toHaveLength(1)
+  it('Terral comments only as itself, only on Terral-visible entities; names and times are set by the server', async () => {
+    const forged = { id: randomUUID(), created_at: '2000-01-01T00:00:00Z', author_name: 'Equipe Don' }
+    const mine = { entity_kind: 'deliverable', entity_ref: K.deliverable, author_role: 'terral', body: 'ok', visible_to_terral: true }
+    const ins = await terral.from('comment').insert({ ...mine, ...forged }).select('*').single()
+    expect(ins.error).toBeNull()
+    const id = ins.data!.id as string
+    extraRefs.push(id)
+    expect(id).not.toBe(forged.id)
+    expect(Date.now() - Date.parse(ins.data!.created_at)).toBeLessThan(60_000)
+    expect(ins.data!.author_name).toBe('terral') // the author's display_name, not the forged one
+
+    // another Terral user sees who wrote it; a Don comment reads "Equipe Don"; no author ids anywhere
+    const seen = (await terral2.from('comment').select('*').in('id', [id, ID.commentVisible])).data!
+    expect(Object.fromEntries(seen.map((c) => [c.id, c.author_name]))).toEqual({ [id]: 'terral', [ID.commentVisible]: 'Equipe Don' })
+    for (const c of seen) expect(Object.keys(c)).not.toContain('author_id')
+    const embed = await terral.from('comment').select('id, comment_author(author_id)').eq('id', id)
+    expect(embed.data?.[0]?.comment_author ?? null).toBeNull()
+
+    // Don still knows the real author, through the Don-only side table
+    expect((await don.from('comment').select('comment_author(author_id)').eq('id', id).single()).data).toEqual({ comment_author: { author_id: f.ids.terral } })
+    const d = await don.from('comment').insert({ entity_kind: 'deliverable', entity_ref: K.deliverable, author_role: 'don', body: 'interno' }).select('id, author_name, visible_to_terral').single()
+    extraRefs.push(d.data!.id)
+    expect(d.data).toMatchObject({ author_name: 'Equipe Don', visible_to_terral: false })
+    // the side row is written by an AFTER trigger: visible on the next read, not in the insert's own response
+    expect((await don.from('comment_author').select('author_id').eq('comment_id', d.data!.id).single()).data).toEqual({ author_id: f.ids.don })
+    expect((await don.from('comment_author').insert({ comment_id: d.data!.id, author_id: f.ids.terral })).error?.code).toBe('42501')
+    // edits keep the attribution: Don can toggle visibility, not rename the author
+    expect((await don.from('comment').update({ author_name: 'Beto', author_role: 'terral', visible_to_terral: true }).eq('id', d.data!.id).select('author_name, author_role, visible_to_terral').single()).data)
+      .toEqual({ author_name: 'Equipe Don', author_role: 'don', visible_to_terral: true })
+
     const bad = [
       { entity_kind: 'open_item', entity_ref: K.openHidden },
       { entity_kind: 'task', entity_ref: ID.task },
       { author_role: 'don' },
-      { author_id: f.ids.don },
       { visible_to_terral: false },
     ]
-    for (const b of bad) expect((await terral.from('comment').insert({ ...mine, id: randomUUID(), ...b })).error, JSON.stringify(b)).not.toBeNull()
-    expect((await terral.from('comment').update({ body: 'edit' }).eq('id', mine.id).select()).data).toEqual([])
-    expect((await terral.from('comment').delete().eq('id', mine.id).select()).data).toEqual([])
+    for (const b of bad) expect((await terral.from('comment').insert({ ...mine, ...b })).error, JSON.stringify(b)).not.toBeNull()
+    expect((await terral.from('comment').update({ body: 'edit' }).eq('id', id).select()).data).toEqual([])
+    expect((await terral.from('comment').delete().eq('id', id).select()).data).toEqual([])
   })
 
   it('Storage: Terral reads only files of Terral-visible evidence and uploads only into its own folder', async () => {
@@ -150,15 +176,22 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
 
     const own = `${f.ids.terral}/${TERRAL_FILE}`
     expect((await store.upload(own, pdf, { contentType: 'application/pdf' })).error).toBeNull()
-    const ev = { id: randomUUID(), entity_kind: 'deliverable', entity_ref: K.deliverable, storage_path: own, file_name: 'a.pdf', uploader_id: f.ids.terral, uploader_role: 'terral', visible_to_terral: true }
-    extraRefs.push(ev.id)
+    const ev = { entity_kind: 'deliverable', entity_ref: K.deliverable, storage_path: own, file_name: 'a.pdf', uploader_role: 'terral', visible_to_terral: true }
     // a Terral evidence row cannot point at someone else's file (that would unlock it)
     expect((await store.download(PATH.orphan)).error).not.toBeNull()
-    expect((await terral.from('evidence').insert({ ...ev, id: randomUUID(), storage_path: PATH.orphan })).error?.code).toBe('42501')
+    expect((await terral.from('evidence').insert({ ...ev, storage_path: PATH.orphan })).error?.code).toBe('42501')
     expect((await store.download(PATH.orphan)).error).not.toBeNull()
-    expect((await terral.from('evidence').insert({ ...ev, id: randomUUID(), entity_kind: 'open_item', entity_ref: K.openHidden })).error).not.toBeNull()
-    expect((await terral.from('evidence').insert({ ...ev, id: randomUUID(), uploader_role: 'don' })).error).not.toBeNull()
-    expect((await terral.from('evidence').insert(ev)).error).toBeNull()
+    expect((await terral.from('evidence').insert({ ...ev, entity_kind: 'open_item', entity_ref: K.openHidden })).error).not.toBeNull()
+    expect((await terral.from('evidence').insert({ ...ev, uploader_role: 'don' })).error).not.toBeNull()
+    const made = await terral.from('evidence').insert({ ...ev, uploader_name: 'Equipe Don', created_at: '2000-01-01T00:00:00Z' }).select('id, uploader_name, created_at').single()
+    expect(made.error).toBeNull()
+    extraRefs.push(made.data!.id)
+    expect(made.data!.uploader_name).toBe('terral')
+    expect(Date.now() - Date.parse(made.data!.created_at)).toBeLessThan(60_000)
+    const seen = (await terral2.from('evidence').select('*').in('id', [made.data!.id, ID.evidenceVisible])).data!
+    expect(Object.fromEntries(seen.map((e) => [e.id, e.uploader_name]))).toEqual({ [made.data!.id]: 'terral', [ID.evidenceVisible]: 'Equipe Don' })
+    for (const e of seen) expect(Object.keys(e)).not.toContain('uploader_id')
+    expect((await don.from('evidence').select('evidence_uploader(uploader_id)').eq('id', made.data!.id).single()).data).toEqual({ evidence_uploader: { uploader_id: f.ids.terral } })
     expect((await store.download(own)).error).toBeNull()
     expect((await store.download(PATH.hidden)).error).not.toBeNull()
   })
@@ -181,7 +214,15 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     expect((await terral.rpc('confirm_date', { p_kind: 'deliverable', p_ref: 'nope', p_date: '2026-11-12' })).error).not.toBeNull()
     expect((await terral.rpc('record_decision', { p_code: 'nope', p_outcome: 'x', p_decided_by: 'x', p_decided_at: '2026-10-27' })).error).not.toBeNull()
 
-    expect((await don.rpc('record_decision', { p_code: K.decision, p_outcome: 'revisto', p_decided_by: 'Diretoria', p_decided_at: '2026-10-28' })).error).toBeNull()
+    // incomplete decisions are rejected; Terral cannot re-decide, Don can
+    const decide = (c: SupabaseClient, args: Partial<Record<'p_outcome' | 'p_decided_by' | 'p_decided_at', string | null>>) =>
+      c.rpc('record_decision', { p_code: K.decision, p_outcome: 'novo', p_decided_by: 'Diretoria', p_decided_at: '2026-10-28', ...args })
+    for (const bad of [{ p_outcome: null }, { p_outcome: '  ' }, { p_decided_by: null }, { p_decided_by: '' }, { p_decided_at: null }])
+      for (const c of [terral, don]) expect((await decide(c, bad)).error?.code, JSON.stringify(bad)).toBe('22023')
+    expect((await decide(terral, {})).error?.code).toBe('42501')
+    expect((await don.from('decision').select('outcome').eq('code', K.decision).single()).data!.outcome).toBe('ok')
+    expect((await decide(don, { p_outcome: 'revisto' })).error).toBeNull()
+    expect((await don.from('decision').select('outcome').eq('code', K.decision).single()).data!.outcome).toBe('revisto')
     expect((await don.rpc('confirm_date', { p_kind: 'deliverable', p_ref: K.deliverable, p_date: '2026-11-21' })).error).toBeNull()
 
     // the RPC writes are logged under the caller, not hidden behind security definer
@@ -225,6 +266,22 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     expect((await admin().from('profiles').select('display_name, role, status, must_change_password').eq('id', s.data.user!.id).single()).data).toEqual({
       display_name: 'Nova Pessoa', role: null, status: 'pending', must_change_password: false,
     })
+  })
+
+  it('open items are resolved or hidden, never deleted (a delete would leak its code over Realtime)', async () => {
+    expect((await don.from('open_item').delete().eq('code', K.openHidden).select()).data ?? []).toEqual([])
+    expect((await don.from('open_item').select('code').eq('code', K.openHidden)).data).toHaveLength(1)
+    expect((await don.from('open_item').update({ status: 'resolved' }).eq('code', K.openHidden).select('status')).data).toEqual([{ status: 'resolved' }])
+    await don.from('open_item').update({ status: 'open' }).eq('code', K.openHidden)
+  })
+
+  it('profile changes are audited, with no secret in the history row', async () => {
+    expect((await don.from('profiles').update({ status: 'approved', role: 'terral' }).eq('id', f.ids.pending).select()).data).toHaveLength(1)
+    const h = (await don.from('history').select('*').eq('table_name', 'profiles').eq('row_ref', f.ids.pending).eq('action', 'UPDATE')).data!
+    const last = h.find((r) => r.new.status === 'approved')
+    expect(last).toMatchObject({ user_id: f.ids.don, old: { status: 'pending', role: null }, new: { role: 'terral' } })
+    expect(Object.keys(last.new).sort()).toEqual(['display_name', 'id', 'must_change_password', 'person_id', 'role', 'status'])
+    await admin().from('profiles').update({ status: 'pending', role: null }).eq('id', f.ids.pending)
   })
 
   it('history logs Don edits and nobody can read or rewrite it except Don reading', async () => {

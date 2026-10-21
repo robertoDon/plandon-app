@@ -193,6 +193,8 @@ export function parseWorkbook(raw: RawWorkbook): ImportResult {
     }
   })
   const ritual_occurrences: RitualOccurrence[] = []
+  // keyed on public facts only (ritual + date): Terral reads these ids, so they must not encode the Don person of the block
+  const occUid = keyedUid('occ')
   for (const b of blocks) {
     if (b.type !== 'Rito') continue
     const rit = rituals.find((x) => x.name === b.description)
@@ -200,7 +202,7 @@ export function parseWorkbook(raw: RawWorkbook): ImportResult {
       warn(`Rito block ${b.date} "${b.description}" matches no ritual`)
       continue
     }
-    ritual_occurrences.push({ id: uid('occ', b.id), ritual_id: rit.id, date: b.date, week: b.week, block_id: b.id })
+    ritual_occurrences.push({ id: occUid(`${rit.id}|${b.date}`), ritual_id: rit.id, date: b.date, week: b.week })
   }
   ritualRows.forEach((r, i) => {
     const got = ritual_occurrences.filter((o) => o.ritual_id === rituals[i].id).length

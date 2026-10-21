@@ -79,7 +79,6 @@ export interface RitualOccurrence {
   ritual_id: string
   date: ISODate
   week: string
-  block_id: string
 }
 
 export type DecisionStatus = 'pending' | 'decided'
@@ -174,8 +173,8 @@ export interface Comment {
   id: string
   entity_kind: string
   entity_ref: string
-  author_id: string
   author_role: 'don' | 'terral'
+  author_name: string // set by the server: the Terral author's display name, or "Equipe Don"
   body: string
   visible_to_terral: boolean
   created_at: string
@@ -187,10 +186,22 @@ export interface Evidence {
   entity_ref: string
   storage_path: string
   file_name: string
-  uploader_id: string
   uploader_role: 'don' | 'terral'
+  uploader_name: string // set by the server, as Comment.author_name
   visible_to_terral: boolean
   created_at: string
+}
+
+/** Don-only: who wrote a comment (Terral never reads author ids). */
+export interface CommentAuthor {
+  comment_id: string
+  author_id: string
+}
+
+/** Don-only: who uploaded an evidence file. */
+export interface EvidenceUploader {
+  evidence_id: string
+  uploader_id: string
 }
 
 export interface HistoryRow {
