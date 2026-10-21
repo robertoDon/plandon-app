@@ -120,7 +120,7 @@ export function errorText(e: unknown): string {
   if (code === '42501') return 'Você não tem permissão para isso.'
   if (code === '23505') return 'Isso já existe.'
   if (e instanceof TypeError) return 'Sem conexão. Tente de novo.'
-  return 'Não deu para salvar. Tente de novo.'
+  return 'Não salvou. Tente de novo.'
 }
 
 /**

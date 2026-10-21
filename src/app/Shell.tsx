@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, matchPath, useLocation } from 'react-router'
-import { motion, useAnimationControls, useDragControls, useReducedMotion } from 'motion/react'
 import { signOut, useSession } from '../auth/useSession'
-import { spring } from '../lib/motion'
+import { Sheet } from '../ui'
 import { matchRoute } from './routes'
 import { Icon } from './icons'
 import './shell.css'
@@ -125,58 +124,21 @@ function Me({ inSheet = false }: { inSheet?: boolean }) {
   )
 }
 
-/** "Mais" on the phone: a bottom sheet (native dialog: focus trap, Esc, focus return). Drag the handle down to close. */
+/** "Mais" on the phone: the shared bottom sheet with the overflow sections and the me-card. */
 function MoreSheet({ open, onClose, onClosed, sections }: { open: boolean; onClose: () => void; onClosed: () => void; sections: Section[] }) {
-  const dlg = useRef<HTMLDialogElement>(null)
-  const sheet = useAnimationControls()
-  const drag = useDragControls()
-  const reduce = useReducedMotion()
-  const variants = reduce
-    ? { open: { opacity: 1, y: 0 }, closed: { opacity: 0, y: 0 } }
-    : { open: { y: 0 }, closed: { y: '100%' } }
-
-  useEffect(() => {
-    const d = dlg.current
-    if (!d) return
-    if (open && !d.open) d.showModal()
-    let current = true
-    void sheet.start(open ? 'open' : 'closed').then(() => {
-      if (current && !open && d.open) {
-        d.close()
-        onClosed()
-      }
-    })
-    return () => {
-      current = false // reopened mid-close: keep the dialog
-    }
-    // onClosed is read when the close finishes; it does not restart the animation
-  }, [open, sheet])
-
   return (
-    <dialog ref={dlg} className="sheet-dialog" aria-label="Mais seções"
-      onCancel={(e) => { e.preventDefault(); onClose() }}>
-      <motion.div className="scrim" initial={false} animate={{ opacity: open ? 1 : 0 }} transition={spring} onClick={onClose} />
-      <motion.div className="sheet" initial="closed" animate={sheet} variants={variants} transition={spring}
-        drag={reduce ? false : 'y'} dragControls={drag} dragListener={false}
-        dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0.04, bottom: 1 }}
-        onDragEnd={(_, info) => (info.offset.y > 96 || info.velocity.y > 500 ? onClose() : void sheet.start('open'))}>
-        <div className="sheet-head" onPointerDown={(e) => drag.start(e)}>
-          <span className="grabber" aria-hidden="true" />
-          <h2>Mais</h2>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar"><Icon name="close" size={20} /></button>
-        </div>
-        <nav className="sheet-list">
-          {sections.map((s) => (
-            <NavLink key={s.path} to={s.path} end={s.end} className={({ isActive }) => `nav${isActive ? ' on' : ''}`}>
-              <Icon name={s.icon} size={22} />
-              <span>{s.label}</span>
-              {!!s.badge && <em>{s.badge}</em>}
-            </NavLink>
-          ))}
-        </nav>
-        <Me inSheet />
-      </motion.div>
-    </dialog>
+    <Sheet open={open} onClose={onClose} onClosed={onClosed} title="Mais">
+      <nav className="sheet-list" aria-label="Mais seções">
+        {sections.map((s) => (
+          <NavLink key={s.path} to={s.path} end={s.end} className={({ isActive }) => `nav${isActive ? ' on' : ''}`}>
+            <Icon name={s.icon} size={22} />
+            <span>{s.label}</span>
+            {!!s.badge && <em>{s.badge}</em>}
+          </NavLink>
+        ))}
+      </nav>
+      <Me inSheet />
+    </Sheet>
   )
 }
 

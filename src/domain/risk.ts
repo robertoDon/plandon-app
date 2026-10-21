@@ -1,5 +1,5 @@
 import { diffDays, fmtDate, fmtHours, type ISODate } from './dates'
-import type { Dependency, PlanData, Severity } from './types'
+import type { Block, Dependency, Person, PlanData, Severity } from './types'
 
 // Risk engine (spec section 8): pure, recomputed from scratch on every change.
 
@@ -36,6 +36,10 @@ const TRAVEL_CAP_H = 9
 const RANK: Record<Severity, number> = { high: 0, medium: 1, low: 2 }
 
 const sum = <T>(xs: T[], f: (x: T) => number) => xs.reduce((s, x) => s + f(x), 0)
+
+/** A person's cap for one day's blocks: the daily cap, raised to 9 h on a travel / on-site day. */
+export const dayCap = (p: Pick<Person, 'daily_cap_h'>, dayBlocks: Pick<Block, 'type'>[]) =>
+  dayBlocks.some((b) => TRAVEL.has(b.type)) ? Math.max(p.daily_cap_h, TRAVEL_CAP_H) : p.daily_cap_h
 
 function groupBy<T>(xs: T[], key: (x: T) => string | null): Map<string, T[]> {
   const m = new Map<string, T[]>()
@@ -98,7 +102,7 @@ export function evaluate(
   for (const p of people) {
     const mine = blocks.filter((b) => b.person_id === p.id)
     for (const [date, bs] of groupBy(mine, (b) => (b.date >= today ? b.date : null))) {
-      const cap = bs.some((b) => TRAVEL.has(b.type)) ? Math.max(p.daily_cap_h, TRAVEL_CAP_H) : p.daily_cap_h
+      const cap = dayCap(p, bs)
       const over = sum(bs, (b) => b.hours) - cap
       if (over > 0)
         add({ rule: 'day_over_capacity', severity: over > 2 ? 'high' : 'medium', title: `${p.name}: ${fmtHours(over + cap)} em ${fmtDate(date)} (limite ${fmtHours(cap)})`, codes: [], person_id: p.id, date }, `${p.id}:${date}`)
