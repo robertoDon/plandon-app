@@ -58,11 +58,18 @@ export function usePlanData() {
   return useQuery({ queryKey: PLAN, queryFn: loadPlan, enabled: profile?.role === 'don' })
 }
 
-/** Terral data: Terral's own selects, or derived from the plan when a Don user looks (preview, meeting). */
+/** Terral re-reads its data this often while the tab is visible (TanStack skips the interval in the background). */
+const TERRAL_POLL_MS = 60_000
+
+/**
+ * Terral data: Terral's own selects, or derived from the plan when a Don user looks (preview, meeting).
+ * Terral also polls: Realtime never tells Terral that Don hid a row (that UPDATE fails Terral's RLS, so no event
+ * reaches it). Don does not: Realtime reaches Don for every change.
+ */
 export function useTerralData() {
   const { profile } = useSession()
   const don = useQuery({ queryKey: PLAN, queryFn: loadPlan, enabled: profile?.role === 'don', select: donAsTerral })
-  const terral = useQuery({ queryKey: TERRAL, queryFn: loadTerral, enabled: profile?.role === 'terral' })
+  const terral = useQuery({ queryKey: TERRAL, queryFn: loadTerral, enabled: profile?.role === 'terral', refetchInterval: TERRAL_POLL_MS })
   return profile?.role === 'don' ? don : terral
 }
 
