@@ -18,14 +18,11 @@ const die = (msg: string): never => { console.error(msg); process.exit(1) }
 if (!url || !key) die('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (.env.local).')
 if (reset && !isLocal && !args.has('--yes-remote')) die(`Refusing --reset on ${url}: not localhost. Pass --yes-remote to wipe a remote database.`)
 
-// Insert order = FK order; reset deletes in reverse.
+// Insert order = FK order.
 const ORDER: (keyof PlanData)[] = [
   'people', 'deliverables', 'tasks', 'blocks', 'rituals', 'ritual_occurrences', 'decisions', 'to_schedule',
   'to_schedule_plan', 'open_items', 'open_items_internal', 'goals', 'traceability', 'dependencies',
 ]
-const ALL_TABLES = [...ORDER, 'manual_risks', 'comments', 'evidence'] as (keyof PlanData)[]
-const PK: Record<string, string> = { person: 'id', deliverable: 'code', decision: 'code', open_item: 'code', open_item_internal: 'code', to_schedule_plan: 'to_schedule_id' }
-const pk = (table: string) => PK[table] ?? 'id'
 
 // --- parse, override, guard (before any DB write) ---
 const data = parseWorkbook(loadRaw())
@@ -53,12 +50,9 @@ const count = async (t: string) => {
 
 // --- 1. reset ---
 if (reset) {
-  for (const k of [...ALL_TABLES].reverse()) {
-    const t = TABLE_OF[k]
-    must(await db.from(t).delete().not(pk(t), 'is', null), `reset ${t}`)
-  }
-  must(await db.from('history').delete().gt('id', 0), 'reset history')
-  console.log('reset: domain tables (incl. comments, evidence, manual_risk) and history cleared')
+  // TRUNCATE (0006): row deletes would broadcast Don-only keys as Realtime DELETE events. person is kept and upserted.
+  must(await db.rpc('reset_domain'), 'reset')
+  console.log('reset: domain tables (incl. comments, evidence, manual_risk) and history truncated; people kept')
 } else {
   for (const k of ORDER) if ((await count(TABLE_OF[k])) > 0) die(`${TABLE_OF[k]} is not empty. Use --reset to reload.`)
 }
@@ -67,7 +61,9 @@ const loadStart = new Date().toISOString()
 // --- 2. insert ---
 for (const k of ORDER) {
   const rows = (plan as Record<string, object[]>)[k]
-  for (let i = 0; i < rows.length; i += 500) must(await db.from(TABLE_OF[k]).insert(rows.slice(i, i + 500)), `insert ${TABLE_OF[k]}`)
+  // people are upserted: a reset never deletes them (their ids are Don names, see 0006)
+  const write = (r: object[]) => (k === 'people' ? db.from(TABLE_OF[k]).upsert(r) : db.from(TABLE_OF[k]).insert(r))
+  for (let i = 0; i < rows.length; i += 500) must(await write(rows.slice(i, i + 500)), `insert ${TABLE_OF[k]}`)
 }
 // The load itself is not user history (service-role writes have no user).
 must(await db.from('history').delete().is('user_id', null).gte('at', loadStart), 'clear import history')

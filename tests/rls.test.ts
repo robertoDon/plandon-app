@@ -285,7 +285,9 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
   })
 
   it('nobody can take the name "Equipe Don" (Don authors appear to Terral under it)', async () => {
-    const reserved = ['Equipe Don', 'equipe  don', ' EQUIPE DON ', 'Equipe Dôn', 'Équipe-Don', 'EquipeDon', 'equipe don', 'equipe​don', 'Minha Equipe Don oficial']
+    const reserved = ['Equipe Don', 'equipe  don', ' EQUIPE DON ', 'Equipe D\u00f4n', '\u00c9quipe-Don', 'EquipeDon', 'equipe\u00a0don', 'equipe\u200bdon', 'Minha Equipe Don oficial',
+      // inside a word: zero-width space, soft hyphen, word joiner, BOM, bidi override, fullwidth letter, combining accents
+      'Equipe D\u200bon', 'Equipe D\u00adon', 'Equi\u2060pe Don', 'Equipe\ufeffDon', '\u202eEquipe Don', 'Equipe \uff24on', 'Equipe Do\u0301n', 'E\u0301quipe Do\u0300n']
     for (const [i, display_name] of reserved.entries()) {
       const s = await anon().auth.signUp({ email: `reserved-${i}@x.test`, password: 'rls-test-password-1', options: { data: { display_name } } })
       expect(s.error, JSON.stringify(display_name)).not.toBeNull()
@@ -303,6 +305,11 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     const ok = await anon().auth.signUp({ email: 'donizete@x.test', password: 'rls-test-password-1', options: { data: { display_name: 'Equipe Donizete' } } })
     expect(ok.error).toBeNull()
     extraRefs.push(ok.data.user!.id)
+  })
+
+  it('only the service role can reset the domain tables', async () => {
+    for (const c of [don, terral, pending, anon()]) expect((await c.rpc('reset_domain')).error, 'reset_domain').not.toBeNull()
+    expect((await don.from('deliverable').select('code').eq('code', K.deliverable)).data).toHaveLength(1)
   })
 
   it('a divergência (X-item) can never be made visible to Terral', async () => {
