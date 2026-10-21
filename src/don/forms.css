@@ -1,0 +1,101 @@
+/* Don forms, editable numbers, list rows and the team screen. Light only. */
+/* Forms (sheets) and editable numbers -------------------------------------------------- */
+.dform { display: flex; flex-direction: column; gap: 14px; padding-top: 6px; }
+.dfield { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dfield label, .dswitch > div > span { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.dfield :is(input, textarea, select) {
+  width: 100%; min-height: 48px; padding: 0 14px;
+  border: 1px solid rgba(0, 0, 0, 0.14); border-radius: 12px; background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 16px; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dfield textarea { padding: 12px 14px; line-height: 1.4; resize: vertical; }
+.dfield :is(input, textarea, select):focus { outline: none; border-color: var(--don-ink); box-shadow: 0 0 0 4px rgba(255, 145, 26, 0.28); }
+.dfield :is(input, textarea, select)[aria-invalid="true"] { border-color: var(--bad); }
+.dfield :is(input, textarea):disabled { background: var(--bg); color: var(--ink2); }
+.dfield-hint { margin: 0; font-size: 12px; color: var(--ink2); }
+.dfield-error { margin: 0; font-size: 13px; font-weight: 500; color: var(--bad-ink, #A82A21); }
+.dform-error { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--bad-soft); color: #A82A21; font-size: 14px; font-weight: 500; }
+.dform-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+.dform > .ui-seg { align-self: flex-start; }
+.dform-group { display: flex; flex-direction: column; gap: 6px; }
+.dform-group > .caption { font-size: 13px; font-weight: 600; }
+.dform-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 420px) { .dform-two { grid-template-columns: minmax(0, 1fr); } }
+
+.dbtn {
+  min-height: 48px; padding: 0 20px; border: 0; border-radius: 13px; background: rgba(0, 0, 0, 0.06); color: var(--ink);
+  font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease-out, background 0.15s, opacity 0.15s;
+}
+.dbtn:hover { background: rgba(0, 0, 0, 0.09); }
+.dbtn:active { transform: scale(0.97); }
+.dbtn.primary { background: var(--don); }
+.dbtn.primary:hover { background: #F5850B; }
+.dbtn.primary:active { background: #E87C08; }
+.dbtn:disabled { opacity: 0.6; cursor: progress; transform: none; }
+.dbtn.small { min-height: 44px; padding: 0 14px; font-size: 14px; }
+
+.dswitch { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 0; }
+.dswitch > div > span { font-size: 15px; color: var(--ink); }
+.dswitch button {
+  position: relative; flex: none; width: 51px; min-width: 51px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.dswitch button::before { content: ""; position: absolute; left: 0; top: 6px; width: 51px; height: 31px; border-radius: 99px; background: rgba(0, 0, 0, 0.3); transition: background 0.2s; }
+.dswitch button i { position: absolute; left: 2px; top: 8px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25); transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.dswitch button[aria-checked="true"]::before { background: var(--ok); }
+.dswitch button[aria-checked="true"] i { transform: translateX(20px); }
+.dswitch button:active i { width: 33px; }
+.dswitch button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.dnum-box { position: relative; }
+.dnum-box input { padding-right: 36px; font-variant-numeric: tabular-nums; }
+.dnum-box span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--ink2); pointer-events: none; }
+
+/* Filters + list rows -------------------------------------------------------------------- */
+.dfilters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.dfilters select {
+  min-height: 44px; padding: 0 32px 0 12px; border: 1px solid rgba(0, 0, 0, 0.14); border-radius: 10px; background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 14px; font-weight: 600;
+}
+.dfilters .ui-seg { max-width: 100%; }
+.dfilters .ui-seg button { padding: 0 12px; }
+
+.drow-btn {
+  display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 12px; align-items: start; width: 100%; min-height: 44px; padding: 12px 8px; margin: 0;
+  border: 0; border-radius: 12px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  transition: background 0.15s, transform 0.1s ease-out; -webkit-tap-highlight-color: transparent;
+}
+.drow-btn:hover { background: rgba(0, 0, 0, 0.03); }
+.drow-btn:active { background: rgba(0, 0, 0, 0.06); transform: scale(0.995); }
+.drow .t { font-size: 14px; }
+.drow .d { font-size: 13px; color: var(--ink2); margin-top: 2px; }
+.drow-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.dgrid-item { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 14px; align-items: start; border-top: 1px solid var(--line); padding: 4px 0; }
+.dgrid-item:first-child { border-top: 0; }
+.dgrid-item > .ui-check { margin-top: 4px; }
+.drow-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 4px; font-size: 13px; color: var(--ink2); }
+.dnote { margin: 0; font-size: 13px; color: var(--ink2); }
+.don-risk-act { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.dlink { min-height: 44px; padding: 0 4px; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 600; color: var(--don-ink); cursor: pointer; border-radius: 6px; }
+.dlink:hover { text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 600px) {
+  .drow-btn { grid-template-columns: 44px minmax(0, 1fr); }
+  .drow-side { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; }
+}
+
+.drow-btn.goal { grid-template-columns: minmax(0, 1fr) auto; }
+@media (max-width: 600px) { .drow-btn.goal { grid-template-columns: minmax(0, 1fr); } .drow-btn.goal .drow-side { grid-column: 1; } }
+
+/* Team ------------------------------------------------------------------------------------ */
+.dteam { display: grid; gap: 22px; }
+@media (min-width: 900px) { .dteam { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); } }
+.dstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 10px; margin: 16px 0; }
+.dstat { padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.dstat .overline { display: block; }
+.dstat b { display: block; font-size: 19px; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.dstat.slack b.bad { color: var(--bad-ink); }
+.dcaps { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.dgrid-item.solo { grid-template-columns: minmax(0, 1fr); }
+
+.don-page > .ui-seg { align-self: flex-start; }

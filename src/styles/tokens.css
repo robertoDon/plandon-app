@@ -1,0 +1,22 @@
+:root {
+  --bg: #F5F5F7;
+  --surface: #FFFFFF;
+  --ink: #100F0F;
+  --ink2: #3C3B3A;
+  --mute: #86868B;
+  --line: rgba(0, 0, 0, 0.08);
+  --don: #FF911A;
+  --don-ink: #B35C00;
+  --don-soft: #FFF1E2;
+  --ok: #1E9E5A;
+  --ok-soft: #E6F6EC;
+  --warn: #C27C00;
+  --warn-ink: #8A5700;
+  --warn-soft: #FFF4D6;
+  --bad: #D93A2F;
+  --bad-soft: #FDE9E7;
+  --r: 18px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --glass: rgba(245, 245, 247, 0.72);
+}

@@ -1,0 +1,191 @@
+/* Terral view and Don's "Visão da Terral". Looks from docs/design/home-mockup.html ("Visão geral"). Light only. */
+.t-page { display: flex; flex-direction: column; gap: 22px; padding-top: 6px; }
+.t-head { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.t-head h1 { margin-top: 2px; }
+.t-head .sub { margin: 2px 0 0; }
+.t-back {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin: -10px 0 -4px -2px; padding: 0 2px;
+  color: var(--don-ink); font-weight: 600; text-decoration: none; border-radius: 8px;
+}
+.t-back span { font-size: 22px; line-height: 1; margin-top: -2px; }
+.t-back:active { opacity: 0.6; }
+
+/* Health card: ring | pill + headline + reasons | KPIs. On the phone the ring sits beside the headline. */
+.ui-card.t-health {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto;
+  gap: 6px 26px; align-items: center; padding: 26px 28px;
+}
+.t-health > .ui-ring { grid-row: 1 / 3; }
+.t-health-head { align-self: end; }
+.t-health-head .t-health-title { margin: 10px 0 0; font-size: 24px; line-height: 1.15; letter-spacing: -0.02em; }
+.t-health > .t-kpis { grid-column: 3; grid-row: 1 / 3; }
+.t-reasons { align-self: start; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-width: 560px; color: var(--ink2); }
+.t-reasons li { position: relative; padding-left: 14px; }
+.t-reasons li::before { content: ""; position: absolute; left: 2px; top: 0.62em; width: 5px; height: 5px; border-radius: 50%; background: var(--ink2); }
+.t-health > .t-reasons { grid-column: 2; }
+.t-kpis { display: grid; grid-template-columns: repeat(2, auto); gap: 16px 28px; margin: 0; text-align: right; }
+.t-kpis > div { display: flex; flex-direction: column-reverse; }
+.t-kpis dd { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+.t-kpis dt { margin-top: 5px; font-size: 12px; color: var(--ink2); }
+/* Not enough room for three columns: the KPIs move under the reasons, in one row of four. */
+@media (max-width: 1279px) {
+  .ui-card.t-health { grid-template-columns: auto minmax(0, 1fr); }
+  .t-health > .t-kpis { grid-column: 1 / -1; grid-row: auto; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; text-align: left; margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+}
+@media (max-width: 899px) {
+  .ui-card.t-health { grid-template-columns: auto minmax(0, 1fr); gap: 14px 18px; padding: 20px 18px; }
+  .t-health > .ui-ring { grid-row: 1; }
+  .t-health-head { align-self: center; }
+  .t-health-head .t-health-title { font-size: 21px; }
+  .t-health > .t-reasons { grid-column: 1 / -1; }
+  .t-health > .t-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0; }
+}
+
+/* Two cards side by side on wide screens ---------------------------------------------- */
+.t-two { display: grid; gap: 22px; align-items: start; }
+@media (min-width: 1100px) { .t-two { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } }
+
+/* Lists: date block, text, side --------------------------------------------------------- */
+.t-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.t-list > li { border-top: 1px solid var(--line); }
+.t-list > li:first-child { border-top: 0; }
+.t-li { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 13px 0; }
+.t-list > .t-li:first-child { padding-top: 2px; }
+.t-date { font-size: 12px; font-weight: 600; color: var(--ink2); text-align: center; line-height: 1.1; letter-spacing: 0.02em; }
+.t-date b { display: block; font-size: 22px; color: var(--ink); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.t-li-text { min-width: 0; }
+.t-li-text .t { font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.t-li-text .d { margin-top: 2px; font-size: 13px; color: var(--ink2); overflow-wrap: anywhere; }
+.t-li-text .t.clamp { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.t-li-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.t-tag { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 7px; background: rgba(0, 0, 0, 0.05); color: var(--ink2); white-space: nowrap; }
+.t-tag.you { background: var(--don-soft); color: var(--don-text); }
+.t-link { color: inherit; text-decoration: none; border-radius: 4px; }
+.t-link:hover { text-decoration: underline; text-decoration-color: var(--mute); text-underline-offset: 3px; }
+.t-more { margin-top: 6px; }
+.t-todos { margin-top: 14px; }
+@media (max-width: 600px) {
+  .t-li { grid-template-columns: 44px minmax(0, 1fr); row-gap: 8px; align-items: start; }
+  .t-li-side { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; }
+}
+
+/* Journey: short labels keep the line to a few rows; the full name is in the tooltip and in the lists.
+   On a phone the line keeps a readable width and scrolls sideways. */
+.t-journey .ui-tl-text { max-width: 150px; }
+@media (max-width: 760px) {
+  .t-journey { overflow-x: auto; margin: 0 -16px; padding: 0 16px 6px; scrollbar-width: thin; }
+  .t-journey > .ui-tl { min-width: 680px; }
+}
+
+/* Journey legend ------------------------------------------------------------------------ */
+.t-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 0; font-size: 12px; color: var(--ink2); }
+.t-key { display: inline-block; width: 11px; height: 11px; margin-right: 5px; vertical-align: -1px; border: 2.5px solid var(--don); border-radius: 50%; background: #fff; }
+.t-key.diamond { width: 10px; height: 10px; border-radius: 3px; border-color: var(--mute); transform: rotate(45deg); }
+.t-key.ok { border-color: var(--ok); }
+
+/* Entregas ------------------------------------------------------------------------------ */
+.t-row-link {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  min-height: 44px; margin: 0 -10px; padding: 12px 10px; border-radius: 12px;
+  color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, transform 0.1s ease-out;
+}
+.t-row-link:hover { background: rgba(0, 0, 0, 0.03); }
+.t-row-link:active { background: rgba(0, 0, 0, 0.06); transform: scale(0.995); }
+.t-row-link .d { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.t-code { font-size: 12px; font-weight: 700; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.t-confirmed { font-size: 12px; font-weight: 600; color: var(--ok-ink); white-space: nowrap; }
+@media (max-width: 600px) {
+  .t-row-link { grid-template-columns: 40px minmax(0, 1fr); row-gap: 8px; align-items: start; }
+  .t-row-link .t-code { line-height: 22px; }
+  .t-row-link .t-li-side { grid-column: 2; }
+}
+
+/* Decisões ------------------------------------------------------------------------------ */
+.t-dec { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px 16px; align-items: start; padding: 14px 0; }
+.t-list > .t-dec:first-child { padding-top: 2px; }
+.t-dec .t-code { line-height: 22px; }
+.t-dec .t-li-side { flex-direction: row; align-items: center; gap: 10px; }
+.t-outcome { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--ok-soft); }
+.t-outcome p { margin: 0; font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.t-outcome span { display: block; margin-top: 4px; font-size: 13px; color: var(--ok-ink); font-weight: 500; }
+@media (max-width: 600px) {
+  .t-dec { grid-template-columns: 40px minmax(0, 1fr); }
+  .t-dec .t-li-side { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; }
+}
+
+/* Metas --------------------------------------------------------------------------------- */
+.t-goals { display: grid; gap: 22px; align-items: start; }
+@media (min-width: 1100px) { .t-goals { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.t-goal { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; align-items: center; padding: 12px 0; }
+.t-list > .t-goal:first-child { padding-top: 0; }
+.t-goal .overline { margin-bottom: 1px; }
+.t-goal .d { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+@media (max-width: 600px) {
+  .t-goal { grid-template-columns: minmax(0, 1fr); }
+  .t-goal .t-li-side { align-items: flex-start; }
+}
+
+/* Entrega (detail) ---------------------------------------------------------------------- */
+.t-detail-hd { display: flex; flex-wrap: wrap; gap: 8px; }
+.t-why { margin-top: 12px; font-size: 14px; }
+.t-flag { margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--warn-soft); color: var(--warn-ink); font-size: 14px; }
+.t-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px 28px; margin: 18px 0 0; }
+.t-facts dt { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink2); }
+.t-facts dd { margin: 4px 0 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+.t-detail-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 20px; }
+
+/* Marcos -------------------------------------------------------------------------------- */
+.t-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 6px; }
+.t-month { margin: 22px 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink2); }
+.t-month:first-of-type { margin-top: 12px; }
+
+/* Sheets -------------------------------------------------------------------------------- */
+.t-form-lead { margin: 0; font-size: 15px; color: var(--ink2); }
+.t-form-lead b { color: var(--ink); }
+.t-warn { margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--warn-soft); color: var(--warn-ink); font-size: 13px; font-weight: 500; }
+
+/* Load error: calm, one action ---------------------------------------------------------- */
+.t-retry { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 24px 8px; text-align: center; }
+.t-retry b { font-size: 17px; letter-spacing: -0.01em; }
+.t-retry p { margin: 0 0 10px; max-width: 360px; font-size: 14px; color: var(--ink2); }
+
+/* Skeleton: fades in after a beat, so a quick load never flashes it -------------------- */
+.t-skel { display: flex; flex-direction: column; gap: 22px; opacity: 0; animation: t-in 0.3s ease-out 0.25s forwards; }
+.t-skel-row { display: grid; gap: 22px; }
+@media (min-width: 1100px) { .t-skel-row { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } }
+.t-skel-card {
+  height: 150px; border-radius: var(--r);
+  background: linear-gradient(100deg, rgba(0, 0, 0, 0.04) 30%, rgba(0, 0, 0, 0.075) 50%, rgba(0, 0, 0, 0.04) 70%);
+  background-size: 300% 100%;
+  animation: t-shimmer 1.6s ease-in-out infinite;
+}
+.t-skel-card.tall { height: 170px; }
+@keyframes t-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@keyframes t-in { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .t-skel { animation: none; opacity: 1; }
+  .t-skel-card { animation: none; background: rgba(0, 0, 0, 0.05); }
+}
+
+/* Don preview: banner and the Terral sections ------------------------------------------- */
+.t-preview { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 12px; }
+.t-banner { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 14px; border-radius: 14px; background: var(--don-soft); color: var(--don-text); font-size: 14px; }
+.t-banner svg { flex: none; color: var(--don-ink); }
+.t-subnav { display: flex; gap: 4px; margin: 0 -4px; padding: 2px 4px; overflow-x: auto; scrollbar-width: none; }
+.t-subnav::-webkit-scrollbar { display: none; }
+.t-subnav a {
+  display: inline-flex; align-items: center; flex: none; min-height: 44px; padding: 0 14px; border-radius: 99px;
+  color: var(--ink2); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent; transition: background 0.15s, color 0.15s, transform 0.1s ease-out;
+}
+.t-subnav a:hover { background: rgba(0, 0, 0, 0.05); color: var(--ink); }
+.t-subnav a:active { transform: scale(0.97); }
+.t-subnav a.active { background: var(--ink); color: #fff; }
+
+@media (prefers-contrast: more) {
+  .t-tag, .t-banner { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); }
+}
+
+/* Preview: an off write is not "busy" */
+.t-page .dbtn:disabled[title] { cursor: not-allowed; }
