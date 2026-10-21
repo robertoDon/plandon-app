@@ -368,7 +368,7 @@ describe('executive reasons', () => {
     const t = toTerralData(realPlan())
     const lines = terralReasons(evaluate(t, TODAY), t, TODAY)
     expect(lines).toEqual([
-      '11 pendências passaram do prazo de 26/10. Uma delas segura a entrega «Lançamento interno».',
+      '11 pendências passaram do prazo de 26/10.', // their links to deliverables are all suggested: none holds one yet
       'Falta combinar a data de «Alinhar a mensagem com a diretoria». A janela fecha em 24/11.',
       '6 entregas ainda não têm data de uso combinada.',
     ])
@@ -425,7 +425,17 @@ describe('executive reasons', () => {
     expect(dueTone('2026-12-13', TODAY)).toBeNull()
   })
 
+  it('a suggested link holds nothing: on the real plan no overdue pendência is red', async () => {
+    mount('/t')
+    await loaded()
+    fireEvent.click(screen.getByRole('button', { name: /Mostrar todas/ }))
+    const list = screen.getByRole('list', { name: 'Pendências da Terral' })
+    expect(list.querySelectorAll('.ui-pill.bad')).toHaveLength(0)
+    expect(list.querySelectorAll('.ui-pill.warn').length).toBe(11)
+  })
+
   it('Visão geral paints only the urgent pendência red and shows no bare codes beside the list', async () => {
+    m.db.dependency.find((x) => x.from_ref === 'P-01' && x.to_code === '3.12')!.suggested = false // Don confirmed it
     mount('/t')
     await loaded()
     fireEvent.click(screen.getByRole('button', { name: /Mostrar todas/ }))

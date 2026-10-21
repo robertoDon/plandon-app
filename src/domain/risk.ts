@@ -68,8 +68,9 @@ export function closure(start: string[], deps: Pick<Dependency, 'from_kind' | 'f
   return seen
 }
 
+/** Deliverables a source holds up directly. Suggested (unconfirmed) links hold nothing until Don confirms them. */
 const unlocks = (deps: Dependency[], kind: Dependency['from_kind'], ref: string) =>
-  deps.filter((d) => d.from_kind === kind && d.from_ref === ref).map((d) => d.to_code)
+  deps.filter((d) => d.from_kind === kind && d.from_ref === ref && !d.suggested).map((d) => d.to_code)
 
 export function evaluate(
   data: EngineInput,

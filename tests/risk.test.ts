@@ -104,11 +104,11 @@ it('confirmed_not_distributed: confirmed in 4 days and not spread is high', () =
 })
 
 describe('terral_dependency_overdue', () => {
-  const overdue = (built_date: string, in_use_start: string) => {
+  const overdue = (built_date: string, in_use_start: string, suggested = false) => {
     const p = mk()
     p.deliverables[0] = del('3.1', { built_date, in_use_start })
     p.open_items.push({ code: 'P-26', kind: 'pendencia', text: 't', owner_public: 'Terral', due: '2026-10-26', due_text: null, effect: null, status: 'open', visible_to_terral: true })
-    p.dependencies.push(dep('open_item', 'P-26', '3.1', true))
+    p.dependencies.push(dep('open_item', 'P-26', '3.1', suggested))
     return of(p, 'terral_dependency_overdue')
   }
   it('high when the deliverable is within 14 days, else medium', () => {
@@ -116,6 +116,18 @@ describe('terral_dependency_overdue', () => {
     expect(r.map((x) => x.severity)).toEqual(['high'])
     expect(r[0].codes).toEqual(['3.1'])
     expect(overdue('2027-01-09', '2027-01-20').map((x) => x.severity)).toEqual(['medium'])
+  })
+  it('a suggested (unconfirmed) link holds nothing: medium, no codes', () => {
+    const r = overdue('2026-11-20', '2026-12-01', true)
+    expect(r.map((x) => [x.severity, x.codes, x.title])).toEqual([['medium', [], 'Pendência P-26 venceu em 26/10']])
+  })
+  it('a suggested link does not make a late decision block anything either', () => {
+    const p = mk()
+    p.decisions.push({ code: 'D09', title: 't', date: '2026-11-01', prepared_on: null, status: 'pending', outcome: null, decided_by: null, decided_at: null })
+    p.dependencies.push(dep('decision', 'D09', '3.1', true))
+    expect(of(p, 'decision_late_blocking')).toEqual([])
+    p.dependencies[p.dependencies.length - 1].suggested = false
+    expect(of(p, 'decision_late_blocking').map((x) => x.codes)).toEqual([['3.1']])
   })
 })
 
