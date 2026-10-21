@@ -196,6 +196,35 @@ describe.skipIf(!localStack)('RLS: Terral never reaches Don data', () => {
     expect((await store.download(PATH.hidden)).error).not.toBeNull()
   })
 
+  it('Storage: Terral removes only its own orphan uploads (a file no evidence row uses)', async () => {
+    const pdf = new Blob(['%PDF-1.4 orphan'], { type: 'application/pdf' })
+    const store = terral.storage.from('evidence')
+    const exists = async (path: string) => !(await admin().storage.from('evidence').download(path)).error
+
+    // An upload whose evidence row never got written: the uploader can take it back.
+    const orphan = `${f.ids.terral}/rls-orphan.pdf`
+    expect((await store.upload(orphan, pdf, { contentType: 'application/pdf' })).error).toBeNull()
+    expect((await terral2.storage.from('evidence').remove([orphan])).data ?? []).toEqual([]) // not someone else's
+    expect(await exists(orphan)).toBe(true)
+    expect((await store.remove([orphan])).data).toHaveLength(1)
+    expect(await exists(orphan)).toBe(false)
+
+    // A file an evidence row points at stays, even after Don hides the row from Terral.
+    const used = `${f.ids.terral}/rls-used.pdf`
+    expect((await store.upload(used, pdf, { contentType: 'application/pdf' })).error).toBeNull()
+    const row = await terral.from('evidence')
+      .insert({ entity_kind: 'deliverable', entity_ref: K.deliverable, storage_path: used, file_name: 'u.pdf', uploader_role: 'terral', visible_to_terral: true })
+      .select('id').single()
+    expect(row.error).toBeNull()
+    extraRefs.push(row.data!.id)
+    expect((await store.remove([used])).data ?? []).toEqual([])
+    expect((await don.from('evidence').update({ visible_to_terral: false }).eq('id', row.data!.id)).error).toBeNull()
+    expect((await store.remove([used])).data ?? []).toEqual([])
+    expect(await exists(used)).toBe(true)
+    expect((await store.remove([PATH.orphan])).data ?? []).toEqual([]) // Don's files: never
+    expect(await exists(PATH.orphan)).toBe(true)
+  })
+
   it('confirm_date and record_decision work for Terral and Don with only their effects', async () => {
     expect(
       (await terral.rpc('record_decision', { p_code: K.decision, p_outcome: 'ok', p_decided_by: 'Diretoria', p_decided_at: '2026-10-27' })).error,

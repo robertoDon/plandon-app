@@ -1,5 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import { Card, Check, Empty, LoadBar, Pill, Ring, Segmented, SeverityBar, SEVERITY, Sheet, Timeline, useToast, type Tone } from '.'
+import { SessionProvider, useSession } from '../auth/useSession'
+import { Comments } from '../shared/Comments'
+import { Evidence } from '../shared/Evidence'
 
 // Dev-only gallery (/dev/ui): every primitive in every tone and state. Not in the production build (see main.tsx).
 
@@ -48,6 +51,22 @@ function Task({ title, sub }: { title: string; sub: string }) {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return <Card title={title}>{children}</Card>
+}
+
+/** Real Comments and Evidence on the local database, as whoever is signed in (?kind=&ref= pick the entity). */
+function SharedDemo() {
+  const { profile, loading } = useSession()
+  const q = new URLSearchParams(location.search)
+  const kind = q.get('kind') ?? 'deliverable'
+  const ref = q.get('ref') ?? '3.1'
+  if (loading) return <p className="sub">Carregando a sessão…</p>
+  if (!profile?.role) return <Card><Empty title="Entre no app para ver comentários e arquivos reais." hint="Esta seção usa a sessão e o banco local." /></Card>
+  return (
+    <div className="dev-grid">
+      <Card title={`Comentários · ${kind} ${ref} · ${profile.role === 'don' ? 'Don' : 'Terral'}`}><Comments entity_kind={kind} entity_ref={ref} canHide /></Card>
+      <Card title="Arquivos"><Evidence entity_kind={kind} entity_ref={ref} /></Card>
+    </div>
+  )
 }
 
 export default function DevUi() {
@@ -158,6 +177,8 @@ export default function DevUi() {
           <Card title="Vazio"><Empty title="Nada pendente" hint="Quando a Terral ou a Don abrirem uma pendência, ela aparece aqui." /></Card>
           <Card><Empty title="Sem título no card" /></Card>
         </div>
+
+        {import.meta.env.DEV && <SessionProvider><SharedDemo /></SessionProvider>}
 
         <h2>375 px</h2>
         <div className="dev-phone">

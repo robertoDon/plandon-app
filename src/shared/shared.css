@@ -1,0 +1,76 @@
+@import '../don/don.css';
+@import '../don/forms.css';
+/* Shared comments and evidence (both roles). Buttons, switch and field text come from src/don/forms.css. Light only. */
+
+/* Comments ------------------------------------------------------------------------------ */
+.cm { display: flex; flex-direction: column; gap: 14px; }
+.cm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.cm-item { padding: 12px 14px; border-radius: 14px; background: var(--bg); transition: opacity 0.2s; }
+.cm-item.don { background: var(--don-soft); }
+.cm-item.pending { opacity: 0.6; }
+.cm-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; }
+.cm-hd b { font-weight: 600; letter-spacing: -0.005em; }
+.cm-hd time { color: var(--ink2); font-variant-numeric: tabular-nums; }
+.cm-body { margin: 4px 0 0; font-size: 15px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cm-flip { margin: 2px 0 -10px -4px; font-size: 13px; }
+
+.cm-form { display: flex; flex-direction: column; gap: 8px; }
+.cm-form textarea {
+  width: 100%; min-height: 72px; padding: 12px 14px; resize: vertical;
+  border: 1px solid rgba(0, 0, 0, 0.14); border-radius: 12px; background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 16px; line-height: 1.4; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cm-form textarea:focus { outline: none; border-color: var(--don-ink); box-shadow: 0 0 0 4px rgba(255, 145, 26, 0.28); }
+.cm-form textarea[aria-invalid="true"] { border-color: var(--bad); }
+.cm-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.cm-actions .dswitch { flex: 1 1 220px; }
+.cm-actions .dbtn { margin-left: auto; }
+
+/* Evidence ------------------------------------------------------------------------------ */
+.ev { display: flex; flex-direction: column; gap: 12px; border-radius: 14px; transition: box-shadow 0.15s, background 0.15s; }
+.ev.over { background: var(--don-soft); box-shadow: 0 0 0 2px var(--don); }
+.ev-list { list-style: none; margin: 0; padding: 0; }
+.ev-item { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.ev-item:first-child { border-top: 0; }
+.ev-item.pending { opacity: 0.6; }
+.ev-kind {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--bg);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--ink2);
+}
+.ev-main { display: flex; flex-direction: column; min-width: 0; }
+.ev-name {
+  min-height: 44px; margin: -8px 0 -10px; padding: 0; border: 0; background: none; color: var(--ink);
+  font: inherit; font-size: 15px; font-weight: 600; text-align: left; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 6px;
+}
+.ev-name:hover { color: var(--don-ink); text-decoration: underline; text-underline-offset: 3px; }
+.ev-name:active { opacity: 0.6; }
+.ev-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; color: var(--ink2); }
+.ev-up { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+@media (max-width: 600px) {
+  .ev-item { grid-template-columns: 40px minmax(0, 1fr); }
+  .ev-item > .dlink { grid-column: 2; justify-self: start; margin-top: -8px; }
+}
+
+/* Access screen ---------------------------------------------------------------------------- */
+.ac-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+.ac-row:first-child { border-top: 0; padding-top: 0; }
+.ac-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ac-who b { font-weight: 600; letter-spacing: -0.005em; overflow-wrap: anywhere; }
+.ac-who span { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; color: var(--ink2); }
+.ac-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+/* Several actions (a pending sign-up) go under the name on a phone; a single "Gerenciar" stays beside it. */
+@media (max-width: 600px) {
+  .ac-row.many { grid-template-columns: minmax(0, 1fr); }
+  .ac-row.many .ac-acts { justify-content: flex-start; }
+}
+.dbtn.danger { background: var(--bad-soft); color: var(--bad-ink); }
+.dbtn.danger:hover { background: #FBDAD6; }
+.dbtn.danger.solid { background: var(--bad); color: #fff; }
+.dbtn.danger.solid:hover { background: #C5332A; }
+.ac-section { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.ac-pass {
+  margin: 0; padding: 16px; border-radius: 14px; background: var(--bg); text-align: center;
+  font: 600 24px/1.2 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.06em; user-select: all; overflow-wrap: anywhere;
+}
+.ac-warn { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--warn-soft); color: var(--warn-ink); font-size: 14px; font-weight: 500; }

@@ -68,6 +68,8 @@ export const extraRefs: string[] = []
 
 /** File name Terral uploads under its own "<uid>/" folder in the test. */
 export const TERRAL_FILE = 'rls-terral.pdf'
+/** More files Terral uploads under its own folder (orphan cleanup test). */
+export const TERRAL_FILES = [TERRAL_FILE, 'rls-orphan.pdf', 'rls-used.pdf']
 
 /** Removes every fixture row, file, user and the history they produced. Safe to run twice. */
 export async function cleanup() {
@@ -75,7 +77,7 @@ export async function cleanup() {
   const del = async (table: string, col: string, values: string[]) => ok(await a.from(table).delete().in(col, values), `cleanup ${table}`)
   const { data } = ok(await a.auth.admin.listUsers({ perPage: 1000 }), 'listUsers')
   const users = data.users.filter((u) => u.email?.endsWith('@x.test')) // every fixture and test signup uses @x.test
-  await a.storage.from('evidence').remove([...Object.values(PATH), ...users.map((u) => `${u.id}/${TERRAL_FILE}`)])
+  await a.storage.from('evidence').remove([...Object.values(PATH), ...users.flatMap((u) => TERRAL_FILES.map((n) => `${u.id}/${n}`))])
   await del('evidence', 'entity_ref', [K.deliverable, K.openHidden, ID.task])
   await del('comment', 'entity_ref', [K.deliverable, K.openHidden, ID.task, K.decision])
   await del('dependency', 'to_code', [K.deliverable])
