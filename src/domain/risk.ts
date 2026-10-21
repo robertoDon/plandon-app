@@ -1,5 +1,5 @@
 import { diffDays, fmtDate, fmtHours, type ISODate } from './dates'
-import type { Block, Dependency, Person, PlanData, Severity } from './types'
+import type { Block, Dependency, Person, PlanData, Severity, ToSchedulePlan } from './types'
 
 // Risk engine (spec section 8): pure, recomputed from scratch on every change.
 
@@ -40,6 +40,16 @@ const sum = <T>(xs: T[], f: (x: T) => number) => xs.reduce((s, x) => s + f(x), 0
 /** A person's cap for one day's blocks: the daily cap, raised to 9 h on a travel / on-site day. */
 export const dayCap = (p: Pick<Person, 'daily_cap_h'>, dayBlocks: Pick<Block, 'type'>[]) =>
   dayBlocks.some((b) => TRAVEL.has(b.type)) ? Math.max(p.daily_cap_h, TRAVEL_CAP_H) : p.daily_cap_h
+
+/**
+ * Hours left in the net capacity: net - reserved - planned blocks - hours still to schedule (not yet distributed).
+ * Null when the person has no net capacity.
+ */
+export function slackOf(p: Pick<Person, 'id' | 'net_capacity_h' | 'reserved_h'>, blocks: Pick<Block, 'person_id' | 'hours'>[], plans: Pick<ToSchedulePlan, 'person_id' | 'hours' | 'distributed'>[]): number | null {
+  if (p.net_capacity_h === null) return null
+  const undistributed = sum(plans.filter((x) => x.person_id === p.id && !x.distributed), (x) => x.hours)
+  return p.net_capacity_h - p.reserved_h - sum(blocks.filter((b) => b.person_id === p.id), (b) => b.hours) - undistributed
+}
 
 function groupBy<T>(xs: T[], key: (x: T) => string | null): Map<string, T[]> {
   const m = new Map<string, T[]>()
@@ -155,9 +165,8 @@ export function evaluate(
   }
 
   for (const p of people) {
-    if (p.net_capacity_h === null) continue
-    const undistributed = sum(plans.filter((x) => x.person_id === p.id && !x.distributed), (x) => x.hours)
-    const slack = p.net_capacity_h - p.reserved_h - sum(blocks.filter((b) => b.person_id === p.id), (b) => b.hours) - undistributed
+    const slack = slackOf(p, blocks, plans)
+    if (slack === null) continue
     if (slack < 0)
       add({ rule: 'slack_exhausted', severity: 'high', title: `${p.name}: plano passa a capacidade líquida em ${fmtHours(-slack)}`, codes: [], person_id: p.id }, p.id)
   }

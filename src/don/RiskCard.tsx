@@ -19,8 +19,10 @@ const SOURCE: Record<RuleId | 'manual', string> = {
 }
 
 /** Risks as rows: severity bar, source, title, held-up deliverables as chips, date and person. `limit` keeps the first n. */
-export function RiskCard({ risks, limit, people = [], title = 'Riscos e gargalos', action, className }: {
+export function RiskCard({ risks, limit, people = [], title = 'Riscos e gargalos', action, className, rowAction, empty = 'Nenhum risco aberto.' }: {
   risks: Risk[]; limit?: number; people?: Person[]; title?: ReactNode; action?: ReactNode; className?: string
+  /** Control under the severity Pill of a row (Riscos: "Encerrar" on manual risks). */
+  rowAction?: (r: Risk) => ReactNode; empty?: string
 }) {
   const shown = limit === undefined ? risks : risks.slice(0, limit)
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? id
@@ -43,13 +45,16 @@ export function RiskCard({ risks, limit, people = [], title = 'Riscos e gargalos
                     </div>
                   )}
                 </div>
-                <Pill tone={SEVERITY[r.severity].tone}>{SEVERITY[r.severity].label}</Pill>
+                <div className="don-risk-act">
+                  <Pill tone={SEVERITY[r.severity].tone}>{SEVERITY[r.severity].label}</Pill>
+                  {rowAction?.(r)}
+                </div>
               </li>
             )
           })}
         </ul>
       ) : (
-        <p className="don-quiet">Nenhum risco aberto.</p>
+        <p className="don-quiet">{empty}</p>
       )}
     </Card>
   )
